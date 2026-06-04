@@ -1,0 +1,121 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+
+import '../models/book.dart';
+
+class BookCoverCard extends StatelessWidget {
+  const BookCoverCard({
+    super.key,
+    required this.book,
+    this.onTap,
+  });
+
+  final Book book;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final progressText = '${(book.progress * 100).clamp(0, 100).round()}%';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: _CoverImage(book: book),
+                  ),
+                ),
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.66),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      child: Text(
+                        progressText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            book.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverImage extends StatelessWidget {
+  const _CoverImage({required this.book});
+
+  final Book book;
+
+  @override
+  Widget build(BuildContext context) {
+    final file = File(book.coverPath);
+    if (book.coverPath.isNotEmpty && file.existsSync()) {
+      return Image.file(
+        file,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _FallbackCover(title: book.title),
+      );
+    }
+    return _FallbackCover(title: book.title);
+  }
+}
+
+class _FallbackCover extends StatelessWidget {
+  const _FallbackCover({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.center,
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      padding: const EdgeInsets.all(10),
+      child: Text(
+        title,
+        maxLines: 5,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+            ),
+      ),
+    );
+  }
+}
