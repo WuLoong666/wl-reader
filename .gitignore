@@ -10,6 +10,7 @@ coverage/
 
 android/local.properties
 android/.gradle/
+android/.kotlin/
 android/app/build/
 
 windows/flutter/ephemeral/

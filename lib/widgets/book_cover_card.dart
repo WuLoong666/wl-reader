@@ -11,6 +11,8 @@ class BookCoverCard extends StatelessWidget {
     this.onTap,
   });
 
+  static const _coverAspectRatio = 0.68;
+
   final Book book;
   final VoidCallback? onTap;
 
@@ -22,45 +24,47 @@ class BookCoverCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: _CoverImage(book: book),
-                  ),
-                ),
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.66),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      child: Text(
-                        progressText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: AspectRatio(
+                aspectRatio: _coverAspectRatio,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _CoverImage(book: book),
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.66),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          child: Text(
+                            progressText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             book.title,
             maxLines: 2,
@@ -84,14 +88,24 @@ class _CoverImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final file = File(book.coverPath);
-    if (book.coverPath.isNotEmpty && file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _FallbackCover(title: book.title),
-      );
-    }
-    return _FallbackCover(title: book.title);
+    final hasCover = book.coverPath.isNotEmpty && file.existsSync();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasCover
+          ? Image.file(
+              file,
+              width: double.infinity,
+              height: double.infinity,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => _FallbackCover(title: book.title),
+            )
+          : _FallbackCover(title: book.title),
+    );
   }
 }
 

@@ -81,8 +81,8 @@ class ShelfPage extends StatelessWidget {
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: _gridCount(width),
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 20,
+                    crossAxisSpacing: 16,
                     childAspectRatio: 0.55,
                   ),
                   delegate: SliverChildBuilderDelegate(

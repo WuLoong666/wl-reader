@@ -32,12 +32,24 @@ class _NovelReaderPageState extends State<NovelReaderPage>
     with WidgetsBindingObserver {
   static const _fontSizeKey = 'reader_font_size';
   static const _lineHeightKey = 'reader_line_height';
+  static const _pageVerticalPaddingKey = 'reader_page_vertical_padding';
+  static const _pageHorizontalPaddingKey = 'reader_page_horizontal_padding';
   static const _nightModeKey = 'reader_night_mode';
   static const _backgroundIndexKey = 'reader_background_index';
   static const _readerModeKey = 'reader_mode';
   static const _legacyReaderDirectionKey = 'reader_direction';
   static const _defaultFontSize = 18.0;
   static const _defaultLineHeight = 1.6;
+  static const _defaultPageVerticalPadding = 32.0;
+  static const _defaultPageHorizontalPadding = 32.0;
+  static const _minLineHeight = 1.2;
+  static const _maxLineHeight = 2.2;
+  static const _lineHeightStep = 0.1;
+  static const _minPageVerticalPadding = 16.0;
+  static const _maxPageVerticalPadding = 80.0;
+  static const _minPageHorizontalPadding = 16.0;
+  static const _maxPageHorizontalPadding = 64.0;
+  static const _pagePaddingStep = 4.0;
   static const _darkBackgroundIndex = 3;
   static const _edgeTapRatio = 0.22;
   static const _wheelTurnCooldown = Duration(milliseconds: 180);
@@ -58,6 +70,8 @@ class _NovelReaderPageState extends State<NovelReaderPage>
   String? _error;
   double _fontSize = _defaultFontSize;
   double _lineHeight = _defaultLineHeight;
+  double _pageVerticalPadding = _defaultPageVerticalPadding;
+  double _pageHorizontalPadding = _defaultPageHorizontalPadding;
   bool _showReaderMenu = false;
   bool _nightMode = false;
   int _backgroundIndex = 0;
@@ -152,20 +166,28 @@ class _NovelReaderPageState extends State<NovelReaderPage>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth >= 900 ? 40.0 : 20.0;
-        final readerWidth = math.min(constraints.maxWidth, 880.0);
-        final pageWidth = math.max(
-          120.0,
-          readerWidth - horizontalPadding * 2,
+        final mediaQuery = MediaQuery.of(context);
+        final pageMetrics = _ReaderPageMetrics.resolve(
+          constraints: constraints,
+          mediaQuery: mediaQuery,
+          pageVerticalPadding: _pageVerticalPadding,
+          pageHorizontalPadding: _pageHorizontalPadding,
         );
-        final pageHeight = math.max(220.0, constraints.maxHeight - 150);
+        final pageTextStyle = DefaultTextStyle.of(context).style.merge(
+              TextStyle(
+                color: colors.foreground,
+                fontSize: _fontSize,
+                height: _lineHeight,
+              ),
+            );
 
         final isHorizontalPage = _readerMode == ReaderMode.horizontalPage;
         if (isHorizontalPage) {
           _ensurePagination(
             chapter: chapter,
-            screenWidth: pageWidth,
-            screenHeight: pageHeight,
+            maxWidth: pageMetrics.textWidth,
+            maxHeight: pageMetrics.textHeight,
+            textStyle: pageTextStyle,
           );
         } else {
           _ensureVerticalScrollRestore();
@@ -198,10 +220,8 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                     itemBuilder: (context, index) {
                       return _ReaderPageContent(
                         text: pages[index],
-                        foregroundColor: colors.foreground,
-                        fontSize: _fontSize,
-                        lineHeight: _lineHeight,
-                        horizontalPadding: horizontalPadding,
+                        textStyle: pageTextStyle,
+                        metrics: pageMetrics,
                       );
                     },
                   )
@@ -213,7 +233,8 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                     foregroundColor: colors.foreground,
                     fontSize: _fontSize,
                     lineHeight: _lineHeight,
-                    horizontalPadding: horizontalPadding,
+                    pageVerticalPadding: _pageVerticalPadding,
+                    pageHorizontalPadding: _pageHorizontalPadding,
                     hasNextChapter: _chapterIndex < _chapters.length - 1,
                     onNextChapter: () {
                       unawaited(_goToChapter(_chapterIndex + 1));
@@ -269,6 +290,9 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                         fontSize: _fontSize,
                         isDarkMode: _nightMode,
                         readerMode: _readerMode,
+                        pageVerticalPadding: _pageVerticalPadding,
+                        pageHorizontalPadding: _pageHorizontalPadding,
+                        lineHeight: _lineHeight,
                         onPreviousChapter: () {
                           unawaited(_goToChapter(_chapterIndex - 1));
                         },
@@ -280,6 +304,44 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                         },
                         onIncreaseFont: () {
                           unawaited(_updateFontSize(_fontSize + 1));
+                        },
+                        onDecreasePageVerticalPadding: () {
+                          unawaited(
+                            _updatePageVerticalPadding(
+                              _pageVerticalPadding - _pagePaddingStep,
+                            ),
+                          );
+                        },
+                        onIncreasePageVerticalPadding: () {
+                          unawaited(
+                            _updatePageVerticalPadding(
+                              _pageVerticalPadding + _pagePaddingStep,
+                            ),
+                          );
+                        },
+                        onDecreasePageHorizontalPadding: () {
+                          unawaited(
+                            _updatePageHorizontalPadding(
+                              _pageHorizontalPadding - _pagePaddingStep,
+                            ),
+                          );
+                        },
+                        onIncreasePageHorizontalPadding: () {
+                          unawaited(
+                            _updatePageHorizontalPadding(
+                              _pageHorizontalPadding + _pagePaddingStep,
+                            ),
+                          );
+                        },
+                        onDecreaseLineHeight: () {
+                          unawaited(
+                            _updateLineHeight(_lineHeight - _lineHeightStep),
+                          );
+                        },
+                        onIncreaseLineHeight: () {
+                          unawaited(
+                            _updateLineHeight(_lineHeight + _lineHeightStep),
+                          );
                         },
                         onCycleBackground: () {
                           unawaited(_cycleBackground());
@@ -353,9 +415,20 @@ class _NovelReaderPageState extends State<NovelReaderPage>
         _chapterIndex = chapterIndex;
         _currentPageIndex =
             readerMode == ReaderMode.horizontalPage ? book.currentPosition : 0;
-        _fontSize = preferences.getDouble(_fontSizeKey) ?? _defaultFontSize;
-        _lineHeight =
-            preferences.getDouble(_lineHeightKey) ?? _defaultLineHeight;
+        _fontSize = (preferences.getDouble(_fontSizeKey) ?? _defaultFontSize)
+            .clamp(14.0, 30.0)
+            .toDouble();
+        _lineHeight = _roundLineHeight(
+          preferences.getDouble(_lineHeightKey) ?? _defaultLineHeight,
+        );
+        _pageVerticalPadding = _clampPageVerticalPadding(
+          preferences.getDouble(_pageVerticalPaddingKey) ??
+              _defaultPageVerticalPadding,
+        );
+        _pageHorizontalPadding = _clampPageHorizontalPadding(
+          preferences.getDouble(_pageHorizontalPaddingKey) ??
+              _defaultPageHorizontalPadding,
+        );
         _nightMode = nightMode;
         _backgroundIndex = backgroundIndex;
         _readerMode = readerMode;
@@ -382,17 +455,20 @@ class _NovelReaderPageState extends State<NovelReaderPage>
 
   void _ensurePagination({
     required Chapter chapter,
-    required double screenWidth,
-    required double screenHeight,
+    required double maxWidth,
+    required double maxHeight,
+    required TextStyle textStyle,
   }) {
     final paginationHash = Object.hash(
       chapter.id,
       chapter.chapterIndex,
       chapter.content.length,
-      screenWidth.round(),
-      screenHeight.round(),
+      maxWidth.round(),
+      maxHeight.round(),
       _fontSize,
       _lineHeight,
+      _pageVerticalPadding,
+      _pageHorizontalPadding,
     );
 
     if (_paginationHash == paginationHash && _currentPages.isNotEmpty) {
@@ -406,10 +482,9 @@ class _NovelReaderPageState extends State<NovelReaderPage>
     );
     final pages = TextPaginator.paginateText(
       content: chapter.content,
-      screenWidth: screenWidth,
-      screenHeight: screenHeight,
-      fontSize: _fontSize,
-      lineHeight: _lineHeight,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+      textStyle: textStyle,
     );
 
     var targetPage = _currentPageIndex;
@@ -535,26 +610,99 @@ class _NovelReaderPageState extends State<NovelReaderPage>
       return;
     }
 
-    final currentFraction = _readerMode == ReaderMode.verticalScroll
-        ? _currentScrollFraction()
-        : _pageFraction(
-            pageIndex: _currentPageIndex,
-            pageCount: _currentPages.length,
-          );
+    final currentFraction = _currentReadingFraction();
     setState(() {
       _fontSize = nextValue;
-      if (_readerMode == ReaderMode.verticalScroll) {
-        _pendingScrollOffset = null;
-        _pendingScrollFraction = currentFraction;
-      } else {
-        _pendingChapterFraction = currentFraction;
-        _paginationHash = null;
-      }
-      _paginationHash = null;
+      _markLayoutForReflow(currentFraction);
     });
 
     final preferences = await SharedPreferences.getInstance();
     await preferences.setDouble(_fontSizeKey, nextValue);
+  }
+
+  Future<void> _updateLineHeight(double value) async {
+    final nextValue = _roundLineHeight(value);
+    if ((nextValue - _lineHeight).abs() < 0.01) {
+      return;
+    }
+
+    final currentFraction = _currentReadingFraction();
+    setState(() {
+      _lineHeight = nextValue;
+      _markLayoutForReflow(currentFraction);
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setDouble(_lineHeightKey, nextValue);
+  }
+
+  Future<void> _updatePageVerticalPadding(double value) async {
+    final nextValue = _clampPageVerticalPadding(value);
+    if ((nextValue - _pageVerticalPadding).abs() < 0.1) {
+      return;
+    }
+
+    final currentFraction = _currentReadingFraction();
+    setState(() {
+      _pageVerticalPadding = nextValue;
+      _markLayoutForReflow(currentFraction);
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setDouble(_pageVerticalPaddingKey, nextValue);
+  }
+
+  Future<void> _updatePageHorizontalPadding(double value) async {
+    final nextValue = _clampPageHorizontalPadding(value);
+    if ((nextValue - _pageHorizontalPadding).abs() < 0.1) {
+      return;
+    }
+
+    final currentFraction = _currentReadingFraction();
+    setState(() {
+      _pageHorizontalPadding = nextValue;
+      _markLayoutForReflow(currentFraction);
+    });
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setDouble(_pageHorizontalPaddingKey, nextValue);
+  }
+
+  double _roundLineHeight(double value) {
+    final clamped = value.clamp(_minLineHeight, _maxLineHeight).toDouble();
+    return (clamped * 10).roundToDouble() / 10;
+  }
+
+  double _clampPageVerticalPadding(double value) {
+    return value
+        .clamp(_minPageVerticalPadding, _maxPageVerticalPadding)
+        .toDouble();
+  }
+
+  double _clampPageHorizontalPadding(double value) {
+    return value
+        .clamp(_minPageHorizontalPadding, _maxPageHorizontalPadding)
+        .toDouble();
+  }
+
+  double _currentReadingFraction() {
+    if (_readerMode == ReaderMode.verticalScroll) {
+      return _currentScrollFraction();
+    }
+    return _pageFraction(
+      pageIndex: _currentPageIndex,
+      pageCount: _currentPages.length,
+    );
+  }
+
+  void _markLayoutForReflow(double currentFraction) {
+    if (_readerMode == ReaderMode.verticalScroll) {
+      _pendingScrollOffset = null;
+      _pendingScrollFraction = currentFraction;
+    } else {
+      _pendingChapterFraction = currentFraction;
+    }
+    _paginationHash = null;
   }
 
   Future<void> _toggleNightMode() async {
@@ -996,40 +1144,78 @@ class _ReaderPalette {
   final Color menuForeground;
 }
 
+class _ReaderPageMetrics {
+  const _ReaderPageMetrics({
+    required this.readerWidth,
+    required this.viewportHeight,
+    required this.contentPadding,
+  });
+
+  static const _maxReaderWidth = 880.0;
+  static const _minTextWidth = 120.0;
+  static const _minTextHeight = 160.0;
+
+  final double readerWidth;
+  final double viewportHeight;
+  final EdgeInsets contentPadding;
+
+  double get textWidth => math.max(
+        _minTextWidth,
+        readerWidth - contentPadding.left - contentPadding.right,
+      );
+
+  double get textHeight => math.max(
+        _minTextHeight,
+        viewportHeight - contentPadding.top - contentPadding.bottom,
+      );
+
+  factory _ReaderPageMetrics.resolve({
+    required BoxConstraints constraints,
+    required MediaQueryData mediaQuery,
+    required double pageVerticalPadding,
+    required double pageHorizontalPadding,
+  }) {
+    final readerWidth = math.min(constraints.maxWidth, _maxReaderWidth);
+    final topPadding = mediaQuery.padding.top + pageVerticalPadding + 16;
+    final bottomPadding = mediaQuery.padding.bottom + pageVerticalPadding + 48;
+
+    return _ReaderPageMetrics(
+      readerWidth: readerWidth,
+      viewportHeight: constraints.maxHeight,
+      contentPadding: EdgeInsets.fromLTRB(
+        pageHorizontalPadding,
+        topPadding,
+        pageHorizontalPadding,
+        bottomPadding,
+      ),
+    );
+  }
+}
+
 class _ReaderPageContent extends StatelessWidget {
   const _ReaderPageContent({
     required this.text,
-    required this.foregroundColor,
-    required this.fontSize,
-    required this.lineHeight,
-    required this.horizontalPadding,
+    required this.textStyle,
+    required this.metrics,
   });
 
   final String text;
-  final Color foregroundColor;
-  final double fontSize;
-  final double lineHeight;
-  final double horizontalPadding;
+  final TextStyle textStyle;
+  final _ReaderPageMetrics metrics;
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 880),
+        constraints: BoxConstraints(maxWidth: metrics.readerWidth),
         child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            64,
-            horizontalPadding,
-            78,
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: foregroundColor,
-              fontSize: fontSize,
-              height: lineHeight,
+          padding: metrics.contentPadding,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Text(
+              text,
+              style: textStyle,
             ),
           ),
         ),
@@ -1046,7 +1232,8 @@ class _ReaderScrollContent extends StatelessWidget {
     required this.foregroundColor,
     required this.fontSize,
     required this.lineHeight,
-    required this.horizontalPadding,
+    required this.pageVerticalPadding,
+    required this.pageHorizontalPadding,
     required this.hasNextChapter,
     required this.onNextChapter,
   });
@@ -1057,12 +1244,15 @@ class _ReaderScrollContent extends StatelessWidget {
   final Color foregroundColor;
   final double fontSize;
   final double lineHeight;
-  final double horizontalPadding;
+  final double pageVerticalPadding;
+  final double pageHorizontalPadding;
   final bool hasNextChapter;
   final VoidCallback onNextChapter;
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -1070,10 +1260,10 @@ class _ReaderScrollContent extends StatelessWidget {
         child: SingleChildScrollView(
           controller: controller,
           padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            64,
-            horizontalPadding,
-            40,
+            pageHorizontalPadding,
+            mediaQuery.padding.top + pageVerticalPadding + 24,
+            pageHorizontalPadding,
+            mediaQuery.padding.bottom + pageVerticalPadding + 40,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

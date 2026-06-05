@@ -9,8 +9,13 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  double _fontSize = 18;
-  double _lineHeight = 1.7;
+  static const _defaultFontSize = 18.0;
+  static const _defaultLineHeight = 1.6;
+  static const _minLineHeight = 1.2;
+  static const _maxLineHeight = 2.2;
+
+  double _fontSize = _defaultFontSize;
+  double _lineHeight = _defaultLineHeight;
   bool _nightMode = false;
 
   @override
@@ -49,9 +54,9 @@ class _SettingsPageState extends State<SettingsPage> {
             contentPadding: EdgeInsets.zero,
             title: const Text('默认行高'),
             subtitle: Slider(
-              min: 1.3,
-              max: 2.2,
-              divisions: 9,
+              min: _minLineHeight,
+              max: _maxLineHeight,
+              divisions: 10,
               label: _lineHeight.toStringAsFixed(1),
               value: _lineHeight,
               onChanged: (value) => _save(lineHeight: value),
@@ -75,8 +80,11 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
     setState(() {
-      _fontSize = preferences.getDouble('reader_font_size') ?? 18;
-      _lineHeight = preferences.getDouble('reader_line_height') ?? 1.7;
+      _fontSize = preferences.getDouble('reader_font_size') ?? _defaultFontSize;
+      _lineHeight =
+          (preferences.getDouble('reader_line_height') ?? _defaultLineHeight)
+              .clamp(_minLineHeight, _maxLineHeight)
+              .toDouble();
       _nightMode = preferences.getBool('reader_night_mode') ?? false;
     });
   }
@@ -88,7 +96,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }) async {
     setState(() {
       _fontSize = fontSize ?? _fontSize;
-      _lineHeight = lineHeight ?? _lineHeight;
+      _lineHeight = (lineHeight ?? _lineHeight)
+          .clamp(_minLineHeight, _maxLineHeight)
+          .toDouble();
       _nightMode = nightMode ?? _nightMode;
     });
 

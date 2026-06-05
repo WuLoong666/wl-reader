@@ -95,7 +95,17 @@ class RecentReadingCard extends StatelessWidget {
   Widget _cover(Book book) {
     final file = File(book.coverPath);
     if (book.coverPath.isNotEmpty && file.existsSync()) {
-      return Image.file(file, fit: BoxFit.cover);
+      return ColoredBox(
+        color: const Color(0xFFF1F2F2),
+        child: Image.file(
+          file,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) =>
+              const ColoredBox(color: Color(0xFFE4E7E7)),
+        ),
+      );
     }
     return const ColoredBox(color: Color(0xFFE4E7E7));
   }
