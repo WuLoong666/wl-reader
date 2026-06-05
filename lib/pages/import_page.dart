@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,7 +23,7 @@ class ImportPage extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.file_open_outlined),
-          label: const Text('选择 TXT / EPUB'),
+          label: const Text('选择 TXT / EPUB / CBZ / ZIP'),
         ),
       ),
     );
@@ -39,8 +41,21 @@ class ImportPage extends StatelessWidget {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(content: Text(_friendlyErrorMessage(error))),
       );
     }
+  }
+
+  String _friendlyErrorMessage(Object error) {
+    if (error is FormatException) {
+      return error.message;
+    }
+    if (error is FileSystemException) {
+      return error.message;
+    }
+    if (error is UnsupportedError) {
+      return error.message?.toString() ?? '不支持的文件格式';
+    }
+    return error.toString();
   }
 }

@@ -26,8 +26,9 @@ class AppDatabase {
     final db = await databaseFactory.openDatabase(
       p.join(dataDir.path, 'wl_reader.db'),
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
       ),
     );
     _database = db;
@@ -52,6 +53,7 @@ CREATE TABLE book (
   file_path TEXT NOT NULL,
   cover_path TEXT NOT NULL DEFAULT '',
   format TEXT NOT NULL,
+  book_type TEXT NOT NULL DEFAULT 'text',
   total_chapters INTEGER NOT NULL DEFAULT 0,
   current_chapter INTEGER NOT NULL DEFAULT 0,
   current_position INTEGER NOT NULL DEFAULT 0,
@@ -88,5 +90,20 @@ CREATE TABLE reading_setting (
 ''');
 
     await db.insert('reading_setting', ReadingSetting.defaults.toMap());
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        "ALTER TABLE book ADD COLUMN book_type TEXT NOT NULL DEFAULT 'text'",
+      );
+      await db.execute('''
+UPDATE book
+SET book_type = CASE
+  WHEN lower(format) = 'epub' THEN 'epub'
+  ELSE 'text'
+END
+''');
+    }
   }
 }

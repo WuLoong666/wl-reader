@@ -1,3 +1,41 @@
+enum BookType {
+  text,
+  epub,
+  comic,
+}
+
+extension BookTypeStorage on BookType {
+  String get storageValue {
+    return switch (this) {
+      BookType.text => 'text',
+      BookType.epub => 'epub',
+      BookType.comic => 'comic',
+    };
+  }
+}
+
+BookType bookTypeFromString(String? value, {String? format}) {
+  switch (value) {
+    case 'epub':
+      return BookType.epub;
+    case 'comic':
+      return BookType.comic;
+    case 'text':
+      return BookType.text;
+  }
+
+  switch (format?.toLowerCase()) {
+    case 'epub':
+      return BookType.epub;
+    case 'cbz':
+    case 'zip':
+      return BookType.comic;
+    case 'txt':
+    default:
+      return BookType.text;
+  }
+}
+
 class Book {
   const Book({
     this.id,
@@ -6,6 +44,7 @@ class Book {
     required this.filePath,
     required this.coverPath,
     required this.format,
+    this.bookType = BookType.text,
     required this.totalChapters,
     required this.currentChapter,
     required this.currentPosition,
@@ -20,6 +59,7 @@ class Book {
   final String filePath;
   final String coverPath;
   final String format;
+  final BookType bookType;
   final int totalChapters;
   final int currentChapter;
   final int currentPosition;
@@ -34,6 +74,7 @@ class Book {
     String? filePath,
     String? coverPath,
     String? format,
+    BookType? bookType,
     int? totalChapters,
     int? currentChapter,
     int? currentPosition,
@@ -48,6 +89,7 @@ class Book {
       filePath: filePath ?? this.filePath,
       coverPath: coverPath ?? this.coverPath,
       format: format ?? this.format,
+      bookType: bookType ?? this.bookType,
       totalChapters: totalChapters ?? this.totalChapters,
       currentChapter: currentChapter ?? this.currentChapter,
       currentPosition: currentPosition ?? this.currentPosition,
@@ -65,6 +107,7 @@ class Book {
       'file_path': filePath,
       'cover_path': coverPath,
       'format': format,
+      'book_type': bookType.storageValue,
       'total_chapters': totalChapters,
       'current_chapter': currentChapter,
       'current_position': currentPosition,
@@ -75,13 +118,18 @@ class Book {
   }
 
   factory Book.fromMap(Map<String, Object?> map) {
+    final format = map['format'] as String? ?? 'txt';
     return Book(
       id: map['id'] as int?,
       title: map['title'] as String? ?? '',
       author: map['author'] as String? ?? '',
       filePath: map['file_path'] as String? ?? '',
       coverPath: map['cover_path'] as String? ?? '',
-      format: map['format'] as String? ?? 'txt',
+      format: format,
+      bookType: bookTypeFromString(
+        map['book_type'] as String?,
+        format: format,
+      ),
       totalChapters: map['total_chapters'] as int? ?? 0,
       currentChapter: map['current_chapter'] as int? ?? 0,
       currentPosition: map['current_position'] as int? ?? 0,

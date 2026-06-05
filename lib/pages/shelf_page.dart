@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +8,7 @@ import '../services/reading_progress_service.dart';
 import '../widgets/book_cover_card.dart';
 import '../widgets/recent_reading_card.dart';
 import '../widgets/today_progress_card.dart';
+import 'comic_reader_page.dart';
 import 'novel_reader_page.dart';
 
 class ShelfPage extends StatelessWidget {
@@ -130,9 +133,22 @@ class ShelfPage extends StatelessWidget {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(content: Text(_friendlyErrorMessage(error))),
       );
     }
+  }
+
+  String _friendlyErrorMessage(Object error) {
+    if (error is FormatException) {
+      return error.message;
+    }
+    if (error is FileSystemException) {
+      return error.message;
+    }
+    if (error is UnsupportedError) {
+      return error.message?.toString() ?? '不支持的文件格式';
+    }
+    return error.toString();
   }
 
   Future<void> _openBook(BuildContext context, Book book) async {
@@ -143,7 +159,9 @@ class ShelfPage extends StatelessWidget {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => NovelReaderPage(bookId: id),
+        builder: (_) => book.bookType == BookType.comic
+            ? ComicReaderPage(bookId: id)
+            : NovelReaderPage(bookId: id),
       ),
     );
     if (context.mounted) {
