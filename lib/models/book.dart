@@ -67,6 +67,10 @@ class Book {
   final DateTime addedTime;
   final DateTime? lastReadTime;
 
+  DateTime get importedAt => addedTime;
+
+  DateTime? get lastReadAt => lastReadTime;
+
   Book copyWith({
     int? id,
     String? title,

@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../models/book.dart';
 import '../services/reading_progress_service.dart';
+import '../utils/book_sorter.dart';
 import '../widgets/book_cover_card.dart';
+import '../widgets/book_detail_sheet.dart';
+import '../widgets/book_sort_sheet.dart';
 import '../widgets/recent_reading_card.dart';
 import '../widgets/today_progress_card.dart';
 import 'comic_reader_page.dart';
@@ -32,6 +35,9 @@ class ShelfPage extends StatelessWidget {
                 child: _ShelfHeader(
                   importing: store.importing,
                   onImport: () => _importBook(context),
+                  sortType: store.sortType,
+                  sortOrder: store.sortOrder,
+                  onSort: () => _showSortOptions(context),
                 ),
               ),
             ),
@@ -53,7 +59,7 @@ class ShelfPage extends StatelessWidget {
                   book: store.recentBook,
                   onTap: store.recentBook == null
                       ? null
-                      : () => _openBook(context, store.recentBook!),
+                      : () => _showBookDetail(context, store.recentBook!),
                 ),
               ),
             ),
@@ -93,7 +99,7 @@ class ShelfPage extends StatelessWidget {
                       final book = books[index];
                       return BookCoverCard(
                         book: book,
-                        onTap: () => _openBook(context, book),
+                        onTap: () => _showBookDetail(context, book),
                       );
                     },
                     childCount: books.length,
@@ -151,6 +157,33 @@ class ShelfPage extends StatelessWidget {
     return error.toString();
   }
 
+  Future<void> _showBookDetail(BuildContext context, Book book) async {
+    final shouldOpen = await showBookDetailSheet(
+      context: context,
+      book: book,
+    );
+    if (shouldOpen != true || !context.mounted) {
+      return;
+    }
+
+    await _openBook(context, book);
+  }
+
+  void _showSortOptions(BuildContext context) {
+    final store = context.read<LibraryStore>();
+    showBookSortSheet(
+      context: context,
+      sortType: store.sortType,
+      sortOrder: store.sortOrder,
+      onChanged: (sortType, sortOrder) {
+        context.read<LibraryStore>().updateSort(
+              sortType: sortType,
+              sortOrder: sortOrder,
+            );
+      },
+    );
+  }
+
   Future<void> _openBook(BuildContext context, Book book) async {
     final id = book.id;
     if (id == null) {
@@ -174,10 +207,16 @@ class _ShelfHeader extends StatelessWidget {
   const _ShelfHeader({
     required this.importing,
     required this.onImport,
+    required this.sortType,
+    required this.sortOrder,
+    required this.onSort,
   });
 
   final bool importing;
   final VoidCallback onImport;
+  final BookSortType sortType;
+  final SortOrder sortOrder;
+  final VoidCallback onSort;
 
   @override
   Widget build(BuildContext context) {
@@ -204,8 +243,8 @@ class _ShelfHeader extends StatelessWidget {
         const SizedBox(width: 8),
         IconButton(
           tooltip: '更多',
-          onPressed: () {},
-          icon: const Icon(Icons.more_horiz),
+          onPressed: onSort,
+          icon: const Icon(Icons.sort),
         ),
       ],
     );

@@ -999,7 +999,10 @@ class _NovelReaderPageState extends State<NovelReaderPage>
 
     final now = DateTime.now();
     _readingSessionStartedAt = stopSession ? null : now;
-    await _readingTimeService.addElapsed(now.difference(startedAt));
+    await _readingTimeService.addElapsed(
+      now.difference(startedAt),
+      bookId: _book?.id,
+    );
   }
 
   void _toggleReaderMenu() {
