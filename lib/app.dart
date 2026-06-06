@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'pages/search_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/shelf_page.dart';
+import 'pages/statistics_page.dart';
 import 'services/reading_progress_service.dart';
 import 'widgets/bottom_nav_bar.dart';
 
@@ -44,8 +45,9 @@ class _HomeShellState extends State<HomeShell> {
         index: _index,
         children: const [
           ShelfPage(),
-          SearchPage(),
+          StatisticsPage(),
           SettingsPage(),
+          SearchPage(),
         ],
       ),
       bottomNavigationBar: ReaderBottomNavBar(

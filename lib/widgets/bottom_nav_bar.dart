@@ -22,14 +22,19 @@ class ReaderBottomNavBar extends StatelessWidget {
           label: '书库',
         ),
         NavigationDestination(
-          icon: Icon(Icons.search_outlined),
-          selectedIcon: Icon(Icons.search),
-          label: '搜索',
+          icon: Icon(Icons.query_stats_outlined),
+          selectedIcon: Icon(Icons.query_stats),
+          label: '统计',
         ),
         NavigationDestination(
           icon: Icon(Icons.settings_outlined),
           selectedIcon: Icon(Icons.settings),
           label: '设置',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.search_outlined),
+          selectedIcon: Icon(Icons.search),
+          label: '搜索',
         ),
       ],
     );
