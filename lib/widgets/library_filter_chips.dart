@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
 import '../utils/library_filter.dart';
 
 class LibraryFilterChips extends StatelessWidget {
@@ -26,12 +29,25 @@ class LibraryFilterChips extends StatelessWidget {
               selected: currentFilter == filter,
               onSelected: (_) => onChanged(filter),
               showCheckmark: false,
+              backgroundColor: AppColors.parchment.withValues(alpha: 0.78),
+              selectedColor: AppColors.sakuraMist,
+              side: BorderSide(
+                color: currentFilter == filter
+                    ? AppColors.sakuraPink
+                    : AppColors.line,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
               avatar: Icon(
                 _iconFor(filter),
                 size: 18,
+                color: currentFilter == filter
+                    ? AppColors.deepPurple
+                    : AppColors.mutedInk,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
           ],
         ],
       ),

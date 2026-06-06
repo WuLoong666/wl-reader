@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/book.dart';
 import '../services/reading_time_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
+import 'magic_gradient_card.dart';
 
 class TodayProgressCard extends StatefulWidget {
   const TodayProgressCard({
@@ -38,10 +42,9 @@ class _TodayProgressCardState extends State<TodayProgressCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
+    return MagicGradientCard(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
         child: Row(
           children: [
             Expanded(
@@ -52,15 +55,20 @@ class _TodayProgressCardState extends State<TodayProgressCard> {
                   Text(
                     '今日阅读时间',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppColors.deepPurple,
                           fontWeight: FontWeight.w800,
                         ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   Text(
                     _formatDuration(_todayDuration),
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w900,
+                          height: 1.1,
+                        ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: AppSpacing.md),
                   FilledButton.icon(
                     onPressed: widget.onContinue,
                     icon: const Icon(Icons.play_arrow_rounded),
@@ -77,14 +85,34 @@ class _TodayProgressCardState extends State<TodayProgressCard> {
                   DecoratedBox(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Colors.white.withValues(alpha: 0.64),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.82),
+                      ),
                     ),
                   ),
                   Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.lavenderMist,
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.all(AppSpacing.sm),
+                        child: Icon(
+                          Icons.menu_book_outlined,
+                          color: AppColors.deepPurple,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    right: 10,
+                    top: 10,
                     child: Icon(
-                      Icons.timer_outlined,
-                      color: Theme.of(context).colorScheme.primary,
+                      Icons.auto_awesome,
+                      color: AppColors.star,
+                      size: 16,
                     ),
                   ),
                 ],

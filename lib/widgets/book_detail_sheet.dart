@@ -7,6 +7,9 @@ import 'package:provider/provider.dart';
 import '../models/book.dart';
 import '../services/reading_progress_service.dart';
 import '../services/reading_time_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
 
 Future<bool?> showBookDetailSheet({
   required BuildContext context,
@@ -50,11 +53,8 @@ class BookDetailSheet extends StatefulWidget {
 }
 
 class _BookDetailSheetState extends State<BookDetailSheet> {
-  static const _backgroundColor = Color(0xFF4B3B63);
   static const _foregroundColor = Color(0xFFF2ECF7);
   static const _mutedColor = Color(0xFFD4C8DE);
-  static const _buttonColor = Color(0xFFE9E2EC);
-  static const _buttonTextColor = Color(0xFF473856);
 
   final _readingTimeService = ReadingTimeService();
   Duration _readingDuration = Duration.zero;
@@ -71,12 +71,17 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
     final mediaQuery = MediaQuery.of(context);
     final author = book.author.trim().isEmpty ? '未知作者' : book.author.trim();
     final status = _readingStatus(book);
+    final actionText = book.progress > 0 ? '继续阅读' : '开始阅读';
 
     return Material(
       color: Colors.transparent,
       child: Container(
         decoration: const BoxDecoration(
-          color: _backgroundColor,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: AppColors.purpleGradient,
+          ),
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         clipBehavior: Clip.antiAlias,
@@ -88,108 +93,117 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
                 math.max(0.0, constraints.maxHeight - infoHeight);
             final coverHeight = (mainHeight - 206).clamp(160.0, 420.0);
 
-            return Column(
+            return Stack(
               children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: mainHeight),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: _foregroundColor.withAlpha(90),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _DetailCover(
-                            book: book,
-                            height: coverHeight,
-                          ),
-                          const SizedBox(height: 18),
-                          Text(
-                            book.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(
-                                  color: _foregroundColor,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.18,
+                const Positioned.fill(child: _DetailPattern()),
+                Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: mainHeight),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: _foregroundColor.withAlpha(100),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.pill),
                                 ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            author,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: _mutedColor,
-                                  height: 1.25,
+                              ),
+                              const SizedBox(height: AppSpacing.xl),
+                              _DetailCover(
+                                book: book,
+                                height: coverHeight,
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                book.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      color: _foregroundColor,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.18,
+                                    ),
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Text(
+                                author,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: _mutedColor,
+                                      height: 1.25,
+                                    ),
+                              ),
+                              const SizedBox(height: 18),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.parchment,
+                                  foregroundColor: AppColors.deepPurple,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 44,
+                                    vertical: 15,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                  textStyle: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                child: Text(actionText),
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: _foregroundColor,
+                                  side: BorderSide(
+                                    color: _foregroundColor.withAlpha(125),
+                                  ),
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.08),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                ),
+                                onPressed: () => _toggleWantToRead(book),
+                                icon: Icon(
+                                  book.isWantToRead
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
+                                ),
+                                label: Text(
+                                  book.isWantToRead ? '移出欲读' : '加入欲读',
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 18),
-                          FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _buttonColor,
-                              foregroundColor: _buttonTextColor,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 42,
-                                vertical: 15,
-                              ),
-                              shape: const StadiumBorder(),
-                              textStyle: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text('开始阅读'),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _foregroundColor,
-                              side: BorderSide(
-                                color: _foregroundColor.withAlpha(150),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              shape: const StadiumBorder(),
-                            ),
-                            onPressed: () => _toggleWantToRead(book),
-                            icon: Icon(
-                              book.isWantToRead
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
-                            ),
-                            label: Text(
-                              book.isWantToRead ? '移出欲读' : '加入欲读',
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                _DetailInfoBar(
-                  readingTime: _formatDuration(_readingDuration),
-                  format: book.formatLabel,
-                  status: status,
-                  bottomPadding: bottomPadding,
+                    _DetailInfoBar(
+                      readingTime: _formatDuration(_readingDuration),
+                      format: book.formatLabel,
+                      status: status,
+                      bottomPadding: bottomPadding,
+                    ),
+                  ],
                 ),
               ],
             );
@@ -259,6 +273,59 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
   }
 }
 
+class _DetailPattern extends StatelessWidget {
+  const _DetailPattern();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _DetailPatternPainter());
+  }
+}
+
+class _DetailPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pagePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = Colors.white.withValues(alpha: 0.12);
+    final starPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.4
+      ..color = AppColors.star.withValues(alpha: 0.38);
+
+    final path = Path()
+      ..moveTo(size.width * 0.12, size.height * 0.16)
+      ..quadraticBezierTo(
+        size.width * 0.3,
+        size.height * 0.06,
+        size.width * 0.48,
+        size.height * 0.16,
+      )
+      ..moveTo(size.width * 0.56, size.height * 0.18)
+      ..quadraticBezierTo(
+        size.width * 0.74,
+        size.height * 0.08,
+        size.width * 0.9,
+        size.height * 0.2,
+      );
+    canvas.drawPath(path, pagePaint);
+
+    for (final point in [
+      Offset(size.width * 0.18, size.height * 0.28),
+      Offset(size.width * 0.84, size.height * 0.32),
+      Offset(size.width * 0.74, size.height * 0.64),
+    ]) {
+      canvas.drawLine(point.translate(-5, 0), point.translate(5, 0), starPaint);
+      canvas.drawLine(point.translate(0, -5), point.translate(0, 5), starPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _DetailCover extends StatelessWidget {
   const _DetailCover({
     required this.book,
@@ -280,17 +347,22 @@ class _DetailCover extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withAlpha(235),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(70),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
+                color: AppColors.sakuraPink.withValues(alpha: 0.26),
+                blurRadius: 34,
+                offset: const Offset(0, 10),
+              ),
+              BoxShadow(
+                color: Colors.black.withAlpha(84),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
             child: hasCover
                 ? Image.file(
                     file,
@@ -315,7 +387,7 @@ class _FallbackDetailCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: const Color(0xFFEDE7F2),
+      color: AppColors.lavenderMist,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -353,8 +425,9 @@ class _DetailInfoBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
         border: Border(
-          top: BorderSide(color: Colors.white.withAlpha(85)),
+          top: BorderSide(color: Colors.white.withAlpha(52)),
         ),
       ),
       child: Padding(
@@ -402,7 +475,7 @@ class _InfoDivider extends StatelessWidget {
     return Container(
       width: 1,
       height: double.infinity,
-      color: Colors.white.withAlpha(85),
+      color: Colors.white.withAlpha(48),
     );
   }
 }
@@ -431,15 +504,24 @@ class _InfoColumn extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Color(0xFFF2ECF7),
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 7),
-          Icon(
-            icon,
-            color: const Color(0xFFE6DDEA),
-            size: 27,
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(
+                icon,
+                color: const Color(0xFFEEDDF2),
+                size: 23,
+              ),
+            ),
           ),
           const SizedBox(height: 7),
           Text(

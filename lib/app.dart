@@ -6,6 +6,7 @@ import 'pages/settings_page.dart';
 import 'pages/shelf_page.dart';
 import 'pages/statistics_page.dart';
 import 'services/reading_progress_service.dart';
+import 'theme/app_theme.dart';
 import 'widgets/bottom_nav_bar.dart';
 
 class WlReaderApp extends StatelessWidget {
@@ -18,10 +19,7 @@ class WlReaderApp extends StatelessWidget {
       child: MaterialApp(
         title: 'WL Reader',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6F6D)),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.light(),
         home: const HomeShell(),
       ),
     );

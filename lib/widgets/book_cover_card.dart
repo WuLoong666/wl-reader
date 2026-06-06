@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_shadows.dart';
+import '../theme/app_spacing.dart';
 
 class BookCoverCard extends StatelessWidget {
   const BookCoverCard({
@@ -20,77 +24,102 @@ class BookCoverCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final progressText = '${(book.progress * 100).clamp(0, 100).round()}%';
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: AspectRatio(
-                aspectRatio: _coverAspectRatio,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _CoverImage(book: book),
-                    Positioned(
-                      left: 6,
-                      bottom: 6,
-                      child: _CoverBadge(
-                        label: book.typeLabel,
-                        icon: book.bookType == BookType.comic
-                            ? Icons.collections_bookmark_outlined
-                            : Icons.menu_book_outlined,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: AspectRatio(
+                    aspectRatio: _coverAspectRatio,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        boxShadow: [AppShadows.coverGlow()],
                       ),
-                    ),
-                    if (book.isWantToRead)
-                      const Positioned(
-                        left: 6,
-                        top: 6,
-                        child: _BookmarkBadge(),
-                      ),
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.66),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          child: Text(
-                            progressText,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _CoverImage(book: book),
+                          Positioned(
+                            left: 6,
+                            bottom: 6,
+                            child: _CoverBadge(
+                              label: book.typeLabel,
+                              icon: book.bookType == BookType.comic
+                                  ? Icons.collections_bookmark_outlined
+                                  : Icons.menu_book_outlined,
                             ),
                           ),
-                        ),
+                          if (book.isWantToRead)
+                            const Positioned(
+                              left: 6,
+                              top: 6,
+                              child: _BookmarkBadge(),
+                            ),
+                          Positioned(
+                            right: 6,
+                            top: 6,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: AppColors.deepPurple
+                                    .withValues(alpha: 0.76),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.sm),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                child: Text(
+                                  progressText,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                book.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.ink,
+                      fontWeight: FontWeight.w900,
+                      height: 1.16,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                book.author.trim().isEmpty ? '作者未记录' : book.author.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.mutedInk,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            book.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -109,8 +138,8 @@ class _CoverBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.66),
-        borderRadius: BorderRadius.circular(6),
+        color: AppColors.deepPurple.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -145,8 +174,8 @@ class _BookmarkBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(6),
+        color: AppColors.sakuraPink,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: const Padding(
         padding: EdgeInsets.all(4),
@@ -172,8 +201,16 @@ class _CoverImage extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.parchment,
+            AppColors.lavenderMist,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
       ),
       clipBehavior: Clip.antiAlias,
       child: hasCover
@@ -198,7 +235,17 @@ class _FallbackCover extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       alignment: Alignment.center,
-      color: Theme.of(context).colorScheme.secondaryContainer,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.sakuraMist,
+            AppColors.lavenderMist,
+            AppColors.parchment,
+          ],
+        ),
+      ),
       padding: const EdgeInsets.all(10),
       child: Text(
         title,

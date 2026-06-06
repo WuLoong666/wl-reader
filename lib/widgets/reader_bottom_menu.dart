@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/reader_mode.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
 
 class ReaderBottomMenu extends StatelessWidget {
   const ReaderBottomMenu({
@@ -60,8 +63,10 @@ class ReaderBottomMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final buttonStyle = OutlinedButton.styleFrom(
       foregroundColor: foregroundColor,
-      side: BorderSide(color: foregroundColor.withAlpha(95)),
+      backgroundColor: foregroundColor.withAlpha(isDarkMode ? 16 : 24),
+      side: BorderSide(color: foregroundColor.withAlpha(78)),
       visualDensity: VisualDensity.compact,
+      shape: const StadiumBorder(),
     );
 
     return Theme(
@@ -70,185 +75,257 @@ class ReaderBottomMenu extends StatelessWidget {
             ? const ColorScheme.dark(primary: Color(0xFFE6E1D8))
             : const ColorScheme.light(primary: Color(0xFF2F6F6D)),
       ),
-      child: Container(
-        color: backgroundColor.withAlpha(238),
-        child: SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: backgroundColor.withAlpha(isDarkMode ? 228 : 240),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(color: foregroundColor.withAlpha(42)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(isDarkMode ? 92 : 34),
+                  blurRadius: 22,
+                  offset: const Offset(0, -6),
+                ),
+              ],
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: buttonStyle,
-                          onPressed: onPreviousChapter,
-                          icon: const Icon(Icons.chevron_left),
-                          label: const Text('上一章'),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          '第 ${currentChapterIndex + 1} / $chapterCount 章',
-                          style: TextStyle(
-                            color: foregroundColor,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: buttonStyle,
-                          onPressed: onNextChapter,
-                          icon: const Icon(Icons.chevron_right),
-                          label: const Text('下一章'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        tooltip: '减小字号',
-                        color: foregroundColor,
-                        onPressed: onDecreaseFont,
-                        icon: const Icon(Icons.text_decrease),
-                      ),
-                      SizedBox(
-                        width: 76,
-                        child: Text(
-                          '${fontSize.round()} 号',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: foregroundColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '增大字号',
-                        color: foregroundColor,
-                        onPressed: onIncreaseFont,
-                        icon: const Icon(Icons.text_increase),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        progressText,
-                        style: TextStyle(
-                          color: foregroundColor,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      OutlinedButton.icon(
-                        style: buttonStyle,
-                        onPressed: onCycleBackground,
-                        icon: const Icon(Icons.palette_outlined),
-                        label: const Text('背景'),
-                      ),
-                      OutlinedButton.icon(
-                        style: buttonStyle,
-                        onPressed: onToggleNightMode,
-                        icon: Icon(
-                          isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                        ),
-                        label: Text(isDarkMode ? '夜间' : '日间'),
-                      ),
-                      SizedBox(
-                        width: 210,
-                        child: SegmentedButton<ReaderMode>(
-                          style: ButtonStyle(
-                            foregroundColor:
-                                WidgetStatePropertyAll(foregroundColor),
-                            side: WidgetStatePropertyAll(
-                              BorderSide(color: foregroundColor.withAlpha(95)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _MenuPanel(
+                      foregroundColor: foregroundColor,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: buttonStyle,
+                              onPressed: onPreviousChapter,
+                              icon: const Icon(Icons.chevron_left),
+                              label: const Text('上一章'),
                             ),
                           ),
-                          segments: const [
-                            ButtonSegment(
-                              value: ReaderMode.horizontalPage,
-                              icon: Icon(Icons.swap_horiz),
-                              label: Text('分页'),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              '第 ${currentChapterIndex + 1} / $chapterCount 章',
+                              style: TextStyle(
+                                color: foregroundColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                            ButtonSegment(
-                              value: ReaderMode.verticalScroll,
-                              icon: Icon(Icons.format_align_left),
-                              label: Text('连续'),
+                          ),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: buttonStyle,
+                              onPressed: onNextChapter,
+                              icon: const Icon(Icons.chevron_right),
+                              label: const Text('下一章'),
                             ),
-                          ],
-                          selected: {readerMode},
-                          onSelectionChanged: (modes) {
-                            if (modes.isEmpty) {
-                              return;
-                            }
-                            onModeChanged(modes.first);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Divider(
-                    height: 1,
-                    color: foregroundColor.withAlpha(45),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '排版设置',
-                      style: TextStyle(
-                        color: foregroundColor.withAlpha(210),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  _LayoutSettingRow(
-                    label: '上下边距',
-                    valueText: pageVerticalPadding.round().toString(),
-                    foregroundColor: foregroundColor,
-                    onDecrease: onDecreasePageVerticalPadding,
-                    onIncrease: onIncreasePageVerticalPadding,
-                  ),
-                  _LayoutSettingRow(
-                    label: '左右边距',
-                    valueText: pageHorizontalPadding.round().toString(),
-                    foregroundColor: foregroundColor,
-                    onDecrease: onDecreasePageHorizontalPadding,
-                    onIncrease: onIncreasePageHorizontalPadding,
-                  ),
-                  _LayoutSettingRow(
-                    label: '行间距',
-                    valueText: lineHeight.toStringAsFixed(1),
-                    foregroundColor: foregroundColor,
-                    onDecrease: onDecreaseLineHeight,
-                    onIncrease: onIncreaseLineHeight,
-                  ),
-                ],
+                    const SizedBox(height: AppSpacing.sm),
+                    _MenuPanel(
+                      foregroundColor: foregroundColor,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            tooltip: '减小字号',
+                            color: foregroundColor,
+                            onPressed: onDecreaseFont,
+                            icon: const Icon(Icons.text_decrease),
+                          ),
+                          SizedBox(
+                            width: 76,
+                            child: Text(
+                              '${fontSize.round()} 号',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: foregroundColor,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '增大字号',
+                            color: foregroundColor,
+                            onPressed: onIncreaseFont,
+                            icon: const Icon(Icons.text_increase),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            progressText,
+                            style: TextStyle(
+                              color: foregroundColor.withAlpha(220),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _MenuPanel(
+                      foregroundColor: foregroundColor,
+                      child: Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '排版设置',
+                              style: TextStyle(
+                                color: foregroundColor.withAlpha(220),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _LayoutSettingRow(
+                            label: '上下边距',
+                            valueText: pageVerticalPadding.round().toString(),
+                            foregroundColor: foregroundColor,
+                            onDecrease: onDecreasePageVerticalPadding,
+                            onIncrease: onIncreasePageVerticalPadding,
+                          ),
+                          _LayoutSettingRow(
+                            label: '左右边距',
+                            valueText: pageHorizontalPadding.round().toString(),
+                            foregroundColor: foregroundColor,
+                            onDecrease: onDecreasePageHorizontalPadding,
+                            onIncrease: onIncreasePageHorizontalPadding,
+                          ),
+                          _LayoutSettingRow(
+                            label: '行间距',
+                            valueText: lineHeight.toStringAsFixed(1),
+                            foregroundColor: foregroundColor,
+                            onDecrease: onDecreaseLineHeight,
+                            onIncrease: onIncreaseLineHeight,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          style: buttonStyle,
+                          onPressed: onCycleBackground,
+                          icon: _BackgroundPreview(color: backgroundColor),
+                          label: const Text('背景'),
+                        ),
+                        OutlinedButton.icon(
+                          style: buttonStyle,
+                          onPressed: onToggleNightMode,
+                          icon: Icon(
+                            isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                          ),
+                          label: Text(isDarkMode ? '夜间' : '日间'),
+                        ),
+                        SizedBox(
+                          width: 210,
+                          child: SegmentedButton<ReaderMode>(
+                            style: ButtonStyle(
+                              foregroundColor:
+                                  WidgetStatePropertyAll(foregroundColor),
+                              backgroundColor: WidgetStatePropertyAll(
+                                foregroundColor.withAlpha(18),
+                              ),
+                              side: WidgetStatePropertyAll(
+                                BorderSide(
+                                  color: foregroundColor.withAlpha(78),
+                                ),
+                              ),
+                            ),
+                            segments: const [
+                              ButtonSegment(
+                                value: ReaderMode.horizontalPage,
+                                icon: Icon(Icons.swap_horiz),
+                                label: Text('分页'),
+                              ),
+                              ButtonSegment(
+                                value: ReaderMode.verticalScroll,
+                                icon: Icon(Icons.format_align_left),
+                                label: Text('连续'),
+                              ),
+                            ],
+                            selected: {readerMode},
+                            onSelectionChanged: (modes) {
+                              if (modes.isEmpty) {
+                                return;
+                              }
+                              onModeChanged(modes.first);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MenuPanel extends StatelessWidget {
+  const _MenuPanel({
+    required this.foregroundColor,
+    required this.child,
+  });
+
+  final Color foregroundColor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: foregroundColor.withAlpha(13),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: foregroundColor.withAlpha(34)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _BackgroundPreview extends StatelessWidget {
+  const _BackgroundPreview({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.sakuraPink.withAlpha(150)),
+      ),
+      child: const SizedBox(width: 18, height: 18),
     );
   }
 }
