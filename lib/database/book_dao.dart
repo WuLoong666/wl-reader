@@ -4,7 +4,8 @@ import '../models/book.dart';
 import 'app_database.dart';
 
 class BookDao {
-  BookDao({AppDatabase? database}) : _database = database ?? AppDatabase.instance;
+  BookDao({AppDatabase? database})
+      : _database = database ?? AppDatabase.instance;
 
   final AppDatabase _database;
 
@@ -88,6 +89,19 @@ added_time DESC
         'progress': progress.clamp(0, 1),
         'last_read_time': DateTime.now().millisecondsSinceEpoch,
       },
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
+
+  Future<void> updateWantToRead({
+    required int bookId,
+    required bool isWantToRead,
+  }) async {
+    final db = await _database.database;
+    await db.update(
+      'book',
+      {'is_want_to_read': isWantToRead ? 1 : 0},
       where: 'id = ?',
       whereArgs: [bookId],
     );

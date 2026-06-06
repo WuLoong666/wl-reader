@@ -79,7 +79,7 @@ class FileImportService {
       filePath: copiedFile.path,
       coverPath: coverPath,
       format: FileTypeDetector.formatName(format),
-      bookType: format == LocalBookFormat.epub ? BookType.epub : BookType.text,
+      bookType: BookType.novel,
       totalChapters: parsed.chapters.length,
       currentChapter: 0,
       currentPosition: 0,

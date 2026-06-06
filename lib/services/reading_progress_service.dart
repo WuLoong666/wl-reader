@@ -57,7 +57,8 @@ class LibraryStore extends ChangeNotifier {
   bool _importing = false;
   String? _errorMessage;
 
-  List<Book> get books => sortBooks(_books, _sortType, _sortOrder);
+  List<Book> get books => sortLibraryBooks(_books);
+  List<Book> get allBooks => List<Book>.unmodifiable(_books);
   BookSortType get sortType => _sortType;
   SortOrder get sortOrder => _sortOrder;
   bool get loading => _loading;
@@ -91,6 +92,10 @@ class LibraryStore extends ChangeNotifier {
     }
   }
 
+  List<Book> sortLibraryBooks(List<Book> books) {
+    return sortBooks(books, _sortType, _sortOrder);
+  }
+
   Future<void> updateSort({
     required BookSortType sortType,
     required SortOrder sortOrder,
@@ -102,6 +107,30 @@ class LibraryStore extends ChangeNotifier {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_sortTypeKey, sortType.storageValue);
     await preferences.setString(_sortOrderKey, sortOrder.storageValue);
+  }
+
+  Future<void> updateWantToRead({
+    required Book book,
+    required bool isWantToRead,
+  }) async {
+    final bookId = book.id;
+    if (bookId == null) {
+      return;
+    }
+
+    await _bookDao.updateWantToRead(
+      bookId: bookId,
+      isWantToRead: isWantToRead,
+    );
+
+    _books = _books
+        .map(
+          (existing) => existing.id == bookId
+              ? existing.copyWith(isWantToRead: isWantToRead)
+              : existing,
+        )
+        .toList(growable: false);
+    notifyListeners();
   }
 
   Future<void> _loadSortPreferences() async {

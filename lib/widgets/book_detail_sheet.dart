@@ -2,8 +2,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/book.dart';
+import '../services/reading_progress_service.dart';
 import '../services/reading_time_service.dart';
 
 Future<bool?> showBookDetailSheet({
@@ -65,10 +67,9 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final book = widget.book;
+    final book = _currentBook(context);
     final mediaQuery = MediaQuery.of(context);
     final author = book.author.trim().isEmpty ? '未知作者' : book.author.trim();
-    final format = _formatLabel(book);
     final status = _readingStatus(book);
 
     return Material(
@@ -85,7 +86,7 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
             final infoHeight = 124.0 + bottomPadding;
             final mainHeight =
                 math.max(0.0, constraints.maxHeight - infoHeight);
-            final coverHeight = (mainHeight - 190).clamp(170.0, 420.0);
+            final coverHeight = (mainHeight - 206).clamp(160.0, 420.0);
 
             return Column(
               children: [
@@ -109,7 +110,7 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
                             book: book,
                             height: coverHeight,
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 18),
                           Text(
                             book.title,
                             maxLines: 2,
@@ -138,7 +139,7 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
                                   height: 1.25,
                                 ),
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 18),
                           FilledButton(
                             style: FilledButton.styleFrom(
                               backgroundColor: _buttonColor,
@@ -156,6 +157,29 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
                             onPressed: () => Navigator.of(context).pop(true),
                             child: const Text('开始阅读'),
                           ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _foregroundColor,
+                              side: BorderSide(
+                                color: _foregroundColor.withAlpha(150),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              shape: const StadiumBorder(),
+                            ),
+                            onPressed: () => _toggleWantToRead(book),
+                            icon: Icon(
+                              book.isWantToRead
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                            ),
+                            label: Text(
+                              book.isWantToRead ? '移出欲读' : '加入欲读',
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -163,7 +187,7 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
                 ),
                 _DetailInfoBar(
                   readingTime: _formatDuration(_readingDuration),
-                  format: format,
+                  format: book.formatLabel,
                   status: status,
                   bottomPadding: bottomPadding,
                 ),
@@ -188,12 +212,21 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
     setState(() => _readingDuration = duration);
   }
 
-  String _formatLabel(Book book) {
-    return switch (book.bookType) {
-      BookType.text => 'TXT',
-      BookType.epub => 'EPUB',
-      BookType.comic => 'Comic',
-    };
+  Book _currentBook(BuildContext context) {
+    final books = context.watch<LibraryStore>().allBooks;
+    for (final book in books) {
+      if (book.id == widget.book.id) {
+        return book;
+      }
+    }
+    return widget.book;
+  }
+
+  Future<void> _toggleWantToRead(Book book) async {
+    await context.read<LibraryStore>().updateWantToRead(
+          book: book,
+          isWantToRead: !book.isWantToRead,
+        );
   }
 
   String _readingStatus(Book book) {

@@ -1,14 +1,12 @@
 enum BookType {
-  text,
-  epub,
+  novel,
   comic,
 }
 
 extension BookTypeStorage on BookType {
   String get storageValue {
     return switch (this) {
-      BookType.text => 'text',
-      BookType.epub => 'epub',
+      BookType.novel => 'novel',
       BookType.comic => 'comic',
     };
   }
@@ -16,23 +14,22 @@ extension BookTypeStorage on BookType {
 
 BookType bookTypeFromString(String? value, {String? format}) {
   switch (value) {
+    case 'novel':
+    case 'text':
     case 'epub':
-      return BookType.epub;
+      return BookType.novel;
     case 'comic':
       return BookType.comic;
-    case 'text':
-      return BookType.text;
   }
 
   switch (format?.toLowerCase()) {
-    case 'epub':
-      return BookType.epub;
     case 'cbz':
     case 'zip':
       return BookType.comic;
+    case 'epub':
     case 'txt':
     default:
-      return BookType.text;
+      return BookType.novel;
   }
 }
 
@@ -44,7 +41,8 @@ class Book {
     required this.filePath,
     required this.coverPath,
     required this.format,
-    this.bookType = BookType.text,
+    this.bookType = BookType.novel,
+    this.isWantToRead = false,
     required this.totalChapters,
     required this.currentChapter,
     required this.currentPosition,
@@ -60,6 +58,7 @@ class Book {
   final String coverPath;
   final String format;
   final BookType bookType;
+  final bool isWantToRead;
   final int totalChapters;
   final int currentChapter;
   final int currentPosition;
@@ -71,6 +70,25 @@ class Book {
 
   DateTime? get lastReadAt => lastReadTime;
 
+  String get typeLabel {
+    return switch (bookType) {
+      BookType.novel => '小说',
+      BookType.comic => '漫画',
+    };
+  }
+
+  String get formatLabel {
+    final normalizedFormat = format.trim().toLowerCase();
+    return switch (normalizedFormat) {
+      'txt' => 'TXT',
+      'epub' => 'EPUB',
+      'cbz' => 'CBZ',
+      'zip' => 'ZIP',
+      _ =>
+        bookType == BookType.comic ? 'Comic' : normalizedFormat.toUpperCase(),
+    };
+  }
+
   Book copyWith({
     int? id,
     String? title,
@@ -79,6 +97,7 @@ class Book {
     String? coverPath,
     String? format,
     BookType? bookType,
+    bool? isWantToRead,
     int? totalChapters,
     int? currentChapter,
     int? currentPosition,
@@ -94,6 +113,7 @@ class Book {
       coverPath: coverPath ?? this.coverPath,
       format: format ?? this.format,
       bookType: bookType ?? this.bookType,
+      isWantToRead: isWantToRead ?? this.isWantToRead,
       totalChapters: totalChapters ?? this.totalChapters,
       currentChapter: currentChapter ?? this.currentChapter,
       currentPosition: currentPosition ?? this.currentPosition,
@@ -112,6 +132,7 @@ class Book {
       'cover_path': coverPath,
       'format': format,
       'book_type': bookType.storageValue,
+      'is_want_to_read': isWantToRead ? 1 : 0,
       'total_chapters': totalChapters,
       'current_chapter': currentChapter,
       'current_position': currentPosition,
@@ -134,6 +155,7 @@ class Book {
         map['book_type'] as String?,
         format: format,
       ),
+      isWantToRead: _boolFromMapValue(map['is_want_to_read']),
       totalChapters: map['total_chapters'] as int? ?? 0,
       currentChapter: map['current_chapter'] as int? ?? 0,
       currentPosition: map['current_position'] as int? ?? 0,
@@ -146,4 +168,17 @@ class Book {
           : DateTime.fromMillisecondsSinceEpoch(map['last_read_time'] as int),
     );
   }
+}
+
+bool _boolFromMapValue(Object? value) {
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value != 0;
+  }
+  if (value is String) {
+    return value == '1' || value.toLowerCase() == 'true';
+  }
+  return false;
 }

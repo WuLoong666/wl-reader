@@ -6,22 +6,34 @@ import 'package:provider/provider.dart';
 import '../models/book.dart';
 import '../services/reading_progress_service.dart';
 import '../utils/book_sorter.dart';
+import '../utils/library_filter.dart';
 import '../widgets/book_cover_card.dart';
 import '../widgets/book_detail_sheet.dart';
 import '../widgets/book_sort_sheet.dart';
+import '../widgets/library_filter_chips.dart';
 import '../widgets/recent_reading_card.dart';
 import '../widgets/today_progress_card.dart';
 import 'comic_reader_page.dart';
 import 'novel_reader_page.dart';
 
-class ShelfPage extends StatelessWidget {
+class ShelfPage extends StatefulWidget {
   const ShelfPage({super.key});
+
+  @override
+  State<ShelfPage> createState() => _ShelfPageState();
+}
+
+class _ShelfPageState extends State<ShelfPage> {
+  LibraryFilter _currentFilter = LibraryFilter.all;
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<LibraryStore>();
     final width = MediaQuery.sizeOf(context).width;
-    final books = store.books;
+    final allBooks = store.allBooks;
+    final filterCounts = countBooksByLibrarySection(allBooks);
+    final sectionBooks = filterBooksByLibrarySection(allBooks, _currentFilter);
+    final books = store.sortLibraryBooks(sectionBooks);
 
     return SafeArea(
       child: RefreshIndicator(
@@ -64,6 +76,18 @@ class ShelfPage extends StatelessWidget {
               ),
             ),
             SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: LibraryFilterChips(
+                  currentFilter: _currentFilter,
+                  counts: filterCounts,
+                  onChanged: (filter) {
+                    setState(() => _currentFilter = filter);
+                  },
+                ),
+              ),
+            ),
+            SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               sliver: SliverToBoxAdapter(
                 child: Text(
@@ -82,7 +106,10 @@ class ShelfPage extends StatelessWidget {
             else if (books.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _EmptyShelf(onImport: () => _importBook(context)),
+                child: _LibraryEmptyState(
+                  filter: _currentFilter,
+                  onImport: () => _importBook(context),
+                ),
               )
             else
               SliverPadding(
@@ -251,8 +278,87 @@ class _ShelfHeader extends StatelessWidget {
   }
 }
 
-class _EmptyShelf extends StatelessWidget {
-  const _EmptyShelf({required this.onImport});
+class _LibraryEmptyState extends StatelessWidget {
+  const _LibraryEmptyState({
+    required this.filter,
+    required this.onImport,
+  });
+
+  final LibraryFilter filter;
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _EmptyStateData.resolve(filter);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              data.icon,
+              size: 48,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              data.message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            if (filter != LibraryFilter.wantToRead) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onImport,
+                icon: const Icon(Icons.file_open_outlined),
+                label: const Text('导入书籍'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyStateData {
+  const _EmptyStateData({
+    required this.icon,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String message;
+
+  factory _EmptyStateData.resolve(LibraryFilter filter) {
+    return switch (filter) {
+      LibraryFilter.all => const _EmptyStateData(
+          icon: Icons.auto_stories_outlined,
+          message: '书架空空如也，导入一本轻小说开始吧',
+        ),
+      LibraryFilter.wantToRead => const _EmptyStateData(
+          icon: Icons.bookmark_border,
+          message: '还没有欲读书籍，把感兴趣的书加入欲读吧',
+        ),
+      LibraryFilter.novel => const _EmptyStateData(
+          icon: Icons.menu_book_outlined,
+          message: '还没有小说，导入 TXT 或 EPUB 开始阅读吧',
+        ),
+      LibraryFilter.comic => const _EmptyStateData(
+          icon: Icons.collections_bookmark_outlined,
+          message: '还没有漫画，之后可以导入 CBZ 或 ZIP 漫画包',
+        ),
+    };
+  }
+}
+
+class EmptyShelf extends StatelessWidget {
+  const EmptyShelf({super.key, required this.onImport});
 
   final VoidCallback onImport;
 

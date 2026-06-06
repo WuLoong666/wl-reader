@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'pages/search_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/shelf_page.dart';
 import 'services/reading_progress_service.dart';
@@ -43,29 +44,13 @@ class _HomeShellState extends State<HomeShell> {
         index: _index,
         children: const [
           ShelfPage(),
-          _SearchPlaceholderPage(),
+          SearchPage(),
           SettingsPage(),
         ],
       ),
       bottomNavigationBar: ReaderBottomNavBar(
         currentIndex: _index,
         onDestinationSelected: (index) => setState(() => _index = index),
-      ),
-    );
-  }
-}
-
-class _SearchPlaceholderPage extends StatelessWidget {
-  const _SearchPlaceholderPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Text(
-          '搜索',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
       ),
     );
   }

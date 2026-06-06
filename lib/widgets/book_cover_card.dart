@@ -36,6 +36,22 @@ class BookCoverCard extends StatelessWidget {
                   children: [
                     _CoverImage(book: book),
                     Positioned(
+                      left: 6,
+                      bottom: 6,
+                      child: _CoverBadge(
+                        label: book.typeLabel,
+                        icon: book.bookType == BookType.comic
+                            ? Icons.collections_bookmark_outlined
+                            : Icons.menu_book_outlined,
+                      ),
+                    ),
+                    if (book.isWantToRead)
+                      const Positioned(
+                        left: 6,
+                        top: 6,
+                        child: _BookmarkBadge(),
+                      ),
+                    Positioned(
                       right: 6,
                       top: 6,
                       child: DecoratedBox(
@@ -75,6 +91,70 @@ class BookCoverCard extends StatelessWidget {
                 ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CoverBadge extends StatelessWidget {
+  const _CoverBadge({
+    required this.label,
+    required this.icon,
+  });
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.66),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 12,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookmarkBadge extends StatelessWidget {
+  const _BookmarkBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.all(4),
+        child: Icon(
+          Icons.bookmark,
+          color: Colors.white,
+          size: 14,
+        ),
       ),
     );
   }
