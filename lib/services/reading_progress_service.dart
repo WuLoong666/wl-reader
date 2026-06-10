@@ -133,6 +133,55 @@ class LibraryStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateReadingStatus({
+    required Book book,
+    required bool isFinished,
+  }) async {
+    final bookId = book.id;
+    if (bookId == null) {
+      return;
+    }
+
+    final updated = isFinished
+        ? book.copyWith(
+            currentChapter:
+                book.totalChapters <= 0 ? 0 : book.totalChapters - 1,
+            currentPosition:
+                book.bookType == BookType.comic && book.totalChapters > 0
+                    ? book.totalChapters - 1
+                    : 0,
+            progress: 1,
+            lastReadTime: DateTime.now(),
+          )
+        : book.copyWith(
+            currentChapter: 0,
+            currentPosition: 0,
+            progress: 0,
+          );
+
+    await _bookDao.update(updated);
+    _books = _books
+        .map((existing) => existing.id == bookId ? updated : existing)
+        .toList(growable: false);
+    notifyListeners();
+  }
+
+  Future<void> deleteBook(Book book) async {
+    final bookId = book.id;
+    if (bookId == null) {
+      return;
+    }
+
+    await _chapterDao.deleteByBookId(bookId);
+    await _bookDao.deleteById(bookId);
+    // TODO: Remove copied source files, covers, epub_assets/{bookId}, comic
+    // extraction directories, and split caches with explicit safe deletion.
+    _books = _books.where((existing) => existing.id != bookId).toList(
+          growable: false,
+        );
+    notifyListeners();
+  }
+
   Future<void> _loadSortPreferences() async {
     if (_sortPreferencesLoaded) {
       return;

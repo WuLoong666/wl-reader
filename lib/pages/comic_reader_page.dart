@@ -5,11 +5,14 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/book_dao.dart';
 import '../models/book.dart';
+import '../models/comic_display_page.dart';
 import '../models/reader_mode.dart';
+import '../services/comic_page_splitter.dart';
 import '../services/reading_progress_service.dart';
 import '../services/reading_time_service.dart';
 import '../utils/natural_sort.dart';
@@ -31,10 +34,12 @@ class _ComicReaderPageState extends State<ComicReaderPage>
     with WidgetsBindingObserver {
   static const _nightModeKey = 'reader_night_mode';
   static const _backgroundIndexKey = 'reader_background_index';
-  static const _readerModeKey = 'reader_mode';
-  static const _legacyReaderDirectionKey = 'reader_direction';
+  static const _comicReaderModeKey = 'comic_reader_mode';
+  static const _comicAutoSplitWidePagesKey = 'comic_auto_split_wide_pages';
+  static const _comicReadingDirectionKey = 'comic_reading_direction';
   static const _darkBackgroundIndex = 3;
   static const _wheelTurnCooldown = Duration(milliseconds: 180);
+  static const _verticalPageSpacing = 4.0;
   static const _pageExtensions = {
     '.jpg',
     '.jpeg',
@@ -46,12 +51,14 @@ class _ComicReaderPageState extends State<ComicReaderPage>
   final _bookDao = BookDao();
   final _progressService = ReadingProgressService();
   final _readingTimeService = ReadingTimeService();
-  final _pageController = PageController();
+  final _pageController = PageController(viewportFraction: 1.0);
   final _scrollController = ScrollController();
 
   Book? _book;
   List<String> _pagePaths = const [];
+  List<ComicDisplayPage> _displayPages = const [];
   List<GlobalKey> _pageKeys = const [];
+  Directory? _splitCacheDir;
   int _currentPageIndex = 0;
   bool _loading = true;
   String? _error;
@@ -59,6 +66,9 @@ class _ComicReaderPageState extends State<ComicReaderPage>
   bool _nightMode = false;
   int _backgroundIndex = 0;
   ReaderMode _readerMode = ReaderMode.horizontalPage;
+  bool _autoSplitWidePages = false;
+  ComicReadingDirection _comicReadingDirection =
+      ComicReadingDirection.rightToLeft;
   int? _queuedPageJump;
   bool _queuedVerticalRestore = false;
   DateTime? _lastWheelTurnAt;
@@ -132,7 +142,7 @@ class _ComicReaderPageState extends State<ComicReaderPage>
       );
     }
 
-    if (_pagePaths.isEmpty) {
+    if (_displayPages.isEmpty) {
       return Center(
         child: Text(
           '没有可阅读的漫画图片',
@@ -142,7 +152,7 @@ class _ComicReaderPageState extends State<ComicReaderPage>
     }
 
     final title = _book?.title ?? '漫画';
-    final pageCount = _pagePaths.length;
+    final pageCount = _displayPages.length;
     final safePageIndex = _safePageIndex(_currentPageIndex);
 
     return Listener(
@@ -198,6 +208,8 @@ class _ComicReaderPageState extends State<ComicReaderPage>
                     currentPageIndex: safePageIndex,
                     pageCount: pageCount,
                     readerMode: _readerMode,
+                    autoSplitWidePages: _autoSplitWidePages,
+                    readingDirection: _comicReadingDirection,
                     isDarkMode: _nightMode,
                     onPreviousPage: _goToPreviousPage,
                     onNextPage: _goToNextPage,
@@ -212,6 +224,12 @@ class _ComicReaderPageState extends State<ComicReaderPage>
                     onModeChanged: (mode) {
                       unawaited(_updateReaderMode(mode));
                     },
+                    onAutoSplitWidePagesChanged: (value) {
+                      unawaited(_updateAutoSplitWidePages(value));
+                    },
+                    onReadingDirectionChanged: (direction) {
+                      unawaited(_updateComicReadingDirection(direction));
+                    },
                   ),
                 ),
               ),
@@ -225,11 +243,15 @@ class _ComicReaderPageState extends State<ComicReaderPage>
     return PageView.builder(
       key: const ValueKey('comic-horizontal-reader'),
       controller: _pageController,
-      itemCount: _pagePaths.length,
+      physics: const PageScrollPhysics(),
+      pageSnapping: true,
+      allowImplicitScrolling: false,
+      clipBehavior: Clip.hardEdge,
+      itemCount: _displayPages.length,
       onPageChanged: _handleHorizontalPageChanged,
       itemBuilder: (context, index) {
         return _ComicPageImage(
-          filePath: _pagePaths[index],
+          filePath: _displayPages[index].imagePath,
           backgroundColor: colors.background,
         );
       },
@@ -247,20 +269,66 @@ class _ComicReaderPageState extends State<ComicReaderPage>
         0,
         mediaQuery.padding.bottom + 96,
       ),
-      itemCount: _pagePaths.length,
+      itemCount: _displayPages.length,
       itemBuilder: (context, index) {
-        return KeyedSubtree(
-          key: _pageKeys[index],
-          child: _ComicStripImage(
-            filePath: _pagePaths[index],
-            backgroundColor: colors.background,
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom:
+                index == _displayPages.length - 1 ? 0 : _verticalPageSpacing,
+          ),
+          child: KeyedSubtree(
+            key: _pageKeys[index],
+            child: _ComicStripImage(
+              filePath: _displayPages[index].imagePath,
+              backgroundColor: colors.background,
+            ),
           ),
         );
       },
     );
   }
 
-  String get _readerModeStorageKey => 'reader_mode_book_${widget.bookId}';
+  String get _readerModeStorageKey => 'comic_reader_mode_book_${widget.bookId}';
+
+  String get _legacyReaderModeStorageKey => 'reader_mode_book_${widget.bookId}';
+
+  _ComicReaderPreferences _loadReaderPreferences(
+    SharedPreferences preferences,
+  ) {
+    var nightMode = preferences.getBool(_nightModeKey) ?? false;
+    var backgroundIndex = preferences.getInt(_backgroundIndexKey) ??
+        (nightMode ? _darkBackgroundIndex : 0);
+    backgroundIndex =
+        backgroundIndex.clamp(0, _ComicReaderColors.paletteCount - 1).toInt();
+    if (backgroundIndex == _darkBackgroundIndex) {
+      nightMode = true;
+    }
+
+    final readerMode = readerModeFromString(
+      preferences.getString(_readerModeStorageKey) ??
+          preferences.getString(_comicReaderModeKey) ??
+          preferences.getString(_legacyReaderModeStorageKey),
+    );
+    final autoSplitWidePages =
+        preferences.getBool(_comicAutoSplitWidePagesKey) ?? false;
+    final comicReadingDirection = comicReadingDirectionFromString(
+      preferences.getString(_comicReadingDirectionKey),
+    );
+
+    return _ComicReaderPreferences(
+      nightMode: nightMode,
+      backgroundIndex: backgroundIndex,
+      readerMode: readerMode,
+      autoSplitWidePages: autoSplitWidePages,
+      comicReadingDirection: comicReadingDirection,
+    );
+  }
+
+  Future<void> _saveReaderModePreference(ReaderMode mode) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_comicReaderModeKey, mode.storageValue);
+    await preferences.setString(_readerModeStorageKey, mode.storageValue);
+  }
 
   Future<void> _load() async {
     try {
@@ -278,21 +346,20 @@ class _ComicReaderPageState extends State<ComicReaderPage>
         throw StateError('漫画目录中没有可阅读的图片');
       }
 
-      var nightMode = preferences.getBool(_nightModeKey) ?? false;
-      var backgroundIndex = preferences.getInt(_backgroundIndexKey) ??
-          (nightMode ? _darkBackgroundIndex : 0);
-      backgroundIndex =
-          backgroundIndex.clamp(0, _ComicReaderColors.paletteCount - 1).toInt();
-      if (backgroundIndex == _darkBackgroundIndex) {
-        nightMode = true;
-      }
-      final readerMode = readerModeFromString(
-        preferences.getString(_readerModeStorageKey) ??
-            preferences.getString(_readerModeKey) ??
-            preferences.getString(_legacyReaderDirectionKey),
+      final readerPreferences = _loadReaderPreferences(preferences);
+      final splitCacheDir = await _splitCacheDirFor(book);
+      final displayPages = await ComicPageSplitter.buildDisplayPages(
+        imagePaths: pagePaths,
+        cacheDir: splitCacheDir,
+        autoSplitWidePages: readerPreferences.autoSplitWidePages,
+        readingDirection: readerPreferences.comicReadingDirection,
       );
+      if (displayPages.isEmpty) {
+        throw StateError('漫画目录中没有可阅读的图片');
+      }
+
       final pageIndex =
-          book.currentPosition.clamp(0, pagePaths.length - 1).toInt();
+          book.currentPosition.clamp(0, displayPages.length - 1).toInt();
 
       if (!mounted) {
         return;
@@ -301,19 +368,19 @@ class _ComicReaderPageState extends State<ComicReaderPage>
       setState(() {
         _book = book;
         _pagePaths = pagePaths;
-        _pageKeys = List.generate(pagePaths.length, (_) => GlobalKey());
+        _displayPages = displayPages;
+        _pageKeys = List.generate(displayPages.length, (_) => GlobalKey());
+        _splitCacheDir = splitCacheDir;
         _currentPageIndex = pageIndex;
-        _nightMode = nightMode;
-        _backgroundIndex = backgroundIndex;
-        _readerMode = readerMode;
+        _nightMode = readerPreferences.nightMode;
+        _backgroundIndex = readerPreferences.backgroundIndex;
+        _readerMode = readerPreferences.readerMode;
+        _autoSplitWidePages = readerPreferences.autoSplitWidePages;
+        _comicReadingDirection = readerPreferences.comicReadingDirection;
         _loading = false;
       });
 
-      if (readerMode == ReaderMode.horizontalPage) {
-        _queuePageJump(pageIndex);
-      } else {
-        _queueVerticalRestore(pageIndex);
-      }
+      _restorePageForMode(readerPreferences.readerMode, pageIndex);
       _startReadingTimeSession();
     } catch (error) {
       if (!mounted) {
@@ -348,6 +415,15 @@ class _ComicReaderPageState extends State<ComicReaderPage>
     return pageFiles.map((file) => file.path).toList(growable: false);
   }
 
+  Future<Directory> _splitCacheDirFor(Book book) async {
+    final appDir = await getApplicationSupportDirectory();
+    final bookId = book.id ?? widget.bookId;
+    // TODO: Delete this cache directory when the owning comic is deleted.
+    return Directory(
+      p.join(appDir.path, 'wl_reader', 'comic_split_cache', '$bookId'),
+    );
+  }
+
   bool _isSupportedPageFile(File file) {
     final name = p.basename(file.path);
     if (name.startsWith('.') || name == '.DS_Store') {
@@ -358,7 +434,7 @@ class _ComicReaderPageState extends State<ComicReaderPage>
 
   Future<void> _saveProgress({int? pageIndexOverride}) async {
     final book = _book;
-    if (book == null || book.id == null || _pagePaths.isEmpty) {
+    if (book == null || book.id == null || _displayPages.isEmpty) {
       return;
     }
 
@@ -380,13 +456,13 @@ class _ComicReaderPageState extends State<ComicReaderPage>
   }
 
   double _calculatePageProgress(int pageIndex) {
-    if (_pagePaths.isEmpty) {
+    if (_displayPages.isEmpty) {
       return 0;
     }
-    if (_pagePaths.length <= 1) {
+    if (_displayPages.length <= 1) {
       return 1;
     }
-    return (pageIndex / (_pagePaths.length - 1)).clamp(0, 1).toDouble();
+    return (pageIndex / (_displayPages.length - 1)).clamp(0, 1).toDouble();
   }
 
   Future<void> _updateReaderMode(ReaderMode mode) async {
@@ -398,16 +474,131 @@ class _ComicReaderPageState extends State<ComicReaderPage>
     final pageIndex = _safePageIndex(_currentPageIndex);
     setState(() => _readerMode = mode);
 
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_readerModeKey, mode.storageValue);
-    await preferences.setString(_readerModeStorageKey, mode.storageValue);
+    await _saveReaderModePreference(mode);
 
+    _restorePageForMode(mode, pageIndex);
+    unawaited(_saveProgress(pageIndexOverride: pageIndex));
+  }
+
+  Future<void> _updateAutoSplitWidePages(bool enabled) async {
+    if (enabled == _autoSplitWidePages) {
+      return;
+    }
+
+    await _updateDisplayPageSettings(autoSplitWidePages: enabled);
+  }
+
+  Future<void> _updateComicReadingDirection(
+    ComicReadingDirection direction,
+  ) async {
+    if (direction == _comicReadingDirection) {
+      return;
+    }
+
+    await _updateDisplayPageSettings(readingDirection: direction);
+  }
+
+  Future<void> _updateDisplayPageSettings({
+    bool? autoSplitWidePages,
+    ComicReadingDirection? readingDirection,
+  }) async {
+    final splitCacheDir = _splitCacheDir;
+    if (splitCacheDir == null || _pagePaths.isEmpty) {
+      return;
+    }
+
+    final nextAutoSplitWidePages = autoSplitWidePages ?? _autoSplitWidePages;
+    final nextReadingDirection = readingDirection ?? _comicReadingDirection;
+    final currentPage = _currentDisplayPage;
+
+    try {
+      final nextDisplayPages = await ComicPageSplitter.buildDisplayPages(
+        imagePaths: _pagePaths,
+        cacheDir: splitCacheDir,
+        autoSplitWidePages: nextAutoSplitWidePages,
+        readingDirection: nextReadingDirection,
+      );
+      if (nextDisplayPages.isEmpty) {
+        return;
+      }
+
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(
+        _comicAutoSplitWidePagesKey,
+        nextAutoSplitWidePages,
+      );
+      await preferences.setString(
+        _comicReadingDirectionKey,
+        nextReadingDirection.storageValue,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final nextPageIndex = _displayPageIndexNear(
+        nextDisplayPages,
+        sourceIndex:
+            currentPage?.sourceIndex ?? _safePageIndex(_currentPageIndex),
+        preferredPart: currentPage?.part,
+      );
+
+      setState(() {
+        _displayPages = nextDisplayPages;
+        _pageKeys = List.generate(nextDisplayPages.length, (_) => GlobalKey());
+        _currentPageIndex = nextPageIndex;
+        _autoSplitWidePages = nextAutoSplitWidePages;
+        _comicReadingDirection = nextReadingDirection;
+      });
+
+      _restorePageForMode(_readerMode, nextPageIndex);
+      unawaited(_saveProgress(pageIndexOverride: nextPageIndex));
+    } catch (_) {
+      _showSnackBar('更新漫画显示设置失败');
+    }
+  }
+
+  ComicDisplayPage? get _currentDisplayPage {
+    if (_displayPages.isEmpty) {
+      return null;
+    }
+    return _displayPages[_safePageIndex(_currentPageIndex)];
+  }
+
+  int _displayPageIndexNear(
+    List<ComicDisplayPage> pages, {
+    required int sourceIndex,
+    ComicPagePart? preferredPart,
+  }) {
+    if (pages.isEmpty) {
+      return 0;
+    }
+
+    if (preferredPart != null) {
+      final exactPartIndex = pages.indexWhere(
+        (page) => page.sourceIndex == sourceIndex && page.part == preferredPart,
+      );
+      if (exactPartIndex >= 0) {
+        return exactPartIndex;
+      }
+    }
+
+    final sameSourceIndex = pages.indexWhere(
+      (page) => page.sourceIndex == sourceIndex,
+    );
+    if (sameSourceIndex >= 0) {
+      return sameSourceIndex;
+    }
+
+    return sourceIndex.clamp(0, pages.length - 1).toInt();
+  }
+
+  void _restorePageForMode(ReaderMode mode, int pageIndex) {
     if (mode == ReaderMode.horizontalPage) {
       _queuePageJump(pageIndex);
-    } else {
-      _queueVerticalRestore(pageIndex);
+      return;
     }
-    unawaited(_saveProgress(pageIndexOverride: pageIndex));
+    _queueVerticalRestore(pageIndex);
   }
 
   Future<void> _toggleNightMode() async {
@@ -532,7 +723,7 @@ class _ComicReaderPageState extends State<ComicReaderPage>
   }
 
   void _goToNextPage() {
-    if (_currentPageIndex >= _pagePaths.length - 1) {
+    if (_currentPageIndex >= _displayPages.length - 1) {
       _showSnackBar('已经是最后一页');
       return;
     }
@@ -577,9 +768,9 @@ class _ComicReaderPageState extends State<ComicReaderPage>
       );
     } else if (_scrollController.hasClients) {
       final maxOffset = _scrollController.position.maxScrollExtent;
-      final target = _pagePaths.length <= 1
+      final target = _displayPages.length <= 1
           ? 0.0
-          : maxOffset * pageIndex / (_pagePaths.length - 1);
+          : maxOffset * pageIndex / (_displayPages.length - 1);
       unawaited(
         _scrollController.animateTo(
           target.clamp(0.0, maxOffset).toDouble(),
@@ -635,10 +826,10 @@ class _ComicReaderPageState extends State<ComicReaderPage>
   }
 
   int _safePageIndex(int pageIndex) {
-    if (_pagePaths.isEmpty) {
+    if (_displayPages.isEmpty) {
       return 0;
     }
-    return pageIndex.clamp(0, _pagePaths.length - 1).toInt();
+    return pageIndex.clamp(0, _displayPages.length - 1).toInt();
   }
 
   void _handleBack() {
@@ -686,6 +877,22 @@ class _ComicReaderPageState extends State<ComicReaderPage>
       SnackBar(content: Text(message)),
     );
   }
+}
+
+class _ComicReaderPreferences {
+  const _ComicReaderPreferences({
+    required this.nightMode,
+    required this.backgroundIndex,
+    required this.readerMode,
+    required this.autoSplitWidePages,
+    required this.comicReadingDirection,
+  });
+
+  final bool nightMode;
+  final int backgroundIndex;
+  final ReaderMode readerMode;
+  final bool autoSplitWidePages;
+  final ComicReadingDirection comicReadingDirection;
 }
 
 class _ComicReaderColors {
@@ -776,16 +983,22 @@ class _ComicPageImage extends StatelessWidget {
       color: backgroundColor,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return InteractiveViewer(
-            minScale: 1,
-            maxScale: 4,
-            child: SizedBox(
-              width: constraints.maxWidth,
-              height: constraints.maxHeight,
-              child: Image.file(
-                file,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const _ComicImageError(),
+          return Center(
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: Center(
+                  child: Image.file(
+                    file,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    errorBuilder: (_, __, ___) => const _ComicImageError(),
+                  ),
+                ),
               ),
             ),
           );
@@ -809,23 +1022,12 @@ class _ComicStripImage extends StatelessWidget {
     final file = File(filePath);
     return ColoredBox(
       color: backgroundColor,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return InteractiveViewer(
-            constrained: false,
-            minScale: 1,
-            maxScale: 4,
-            child: SizedBox(
-              width: constraints.maxWidth,
-              child: Image.file(
-                file,
-                width: constraints.maxWidth,
-                fit: BoxFit.fitWidth,
-                errorBuilder: (_, __, ___) => const _ComicImageError(),
-              ),
-            ),
-          );
-        },
+      child: Image.file(
+        file,
+        width: double.infinity,
+        fit: BoxFit.fitWidth,
+        alignment: Alignment.topCenter,
+        errorBuilder: (_, __, ___) => const _ComicImageError(),
       ),
     );
   }
@@ -926,6 +1128,8 @@ class _ComicBottomMenu extends StatelessWidget {
     required this.currentPageIndex,
     required this.pageCount,
     required this.readerMode,
+    required this.autoSplitWidePages,
+    required this.readingDirection,
     required this.isDarkMode,
     required this.onPreviousPage,
     required this.onNextPage,
@@ -934,6 +1138,8 @@ class _ComicBottomMenu extends StatelessWidget {
     required this.onCycleBackground,
     required this.onToggleNightMode,
     required this.onModeChanged,
+    required this.onAutoSplitWidePagesChanged,
+    required this.onReadingDirectionChanged,
   });
 
   final Color backgroundColor;
@@ -941,6 +1147,8 @@ class _ComicBottomMenu extends StatelessWidget {
   final int currentPageIndex;
   final int pageCount;
   final ReaderMode readerMode;
+  final bool autoSplitWidePages;
+  final ComicReadingDirection readingDirection;
   final bool isDarkMode;
   final VoidCallback onPreviousPage;
   final VoidCallback onNextPage;
@@ -949,6 +1157,8 @@ class _ComicBottomMenu extends StatelessWidget {
   final VoidCallback onCycleBackground;
   final VoidCallback onToggleNightMode;
   final ValueChanged<ReaderMode> onModeChanged;
+  final ValueChanged<bool> onAutoSplitWidePagesChanged;
+  final ValueChanged<ComicReadingDirection> onReadingDirectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -966,95 +1176,165 @@ class _ComicBottomMenu extends StatelessWidget {
         color: backgroundColor.withAlpha(238),
         child: SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: '上一页',
-                      color: foregroundColor,
-                      onPressed: currentPageIndex <= 0 ? null : onPreviousPage,
-                      icon: const Icon(Icons.chevron_left),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${currentPageIndex + 1} / $pageCount',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: foregroundColor,
-                          fontWeight: FontWeight.w700,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.58,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: '上一页',
+                        color: foregroundColor,
+                        onPressed:
+                            currentPageIndex <= 0 ? null : onPreviousPage,
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${currentPageIndex + 1} / $pageCount',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: foregroundColor,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
+                      IconButton(
+                        tooltip: '下一页',
+                        color: foregroundColor,
+                        onPressed: currentPageIndex >= pageCount - 1
+                            ? null
+                            : onNextPage,
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    min: 0,
+                    max: sliderMax,
+                    divisions: pageCount > 1 ? pageCount - 1 : null,
+                    value: sliderValue,
+                    label: '${currentPageIndex + 1}',
+                    onChanged: pageCount > 1
+                        ? (value) => onPreviewPage(value.round())
+                        : null,
+                    onChangeEnd: pageCount > 1
+                        ? (value) => onJumpToPage(value.round())
+                        : null,
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: math
+                              .min(
+                                260,
+                                MediaQuery.sizeOf(context).width - 112,
+                              )
+                              .clamp(180, 260)
+                              .toDouble(),
+                          child: SegmentedButton<ReaderMode>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment(
+                                value: ReaderMode.horizontalPage,
+                                icon: Icon(Icons.view_carousel_outlined),
+                                label: Text('横向'),
+                              ),
+                              ButtonSegment(
+                                value: ReaderMode.verticalScroll,
+                                icon: Icon(Icons.view_stream_outlined),
+                                label: Text('竖向'),
+                              ),
+                            ],
+                            selected: {readerMode},
+                            onSelectionChanged: (selection) {
+                              onModeChanged(selection.first);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: '背景',
+                          color: foregroundColor,
+                          onPressed: onCycleBackground,
+                          icon: const Icon(Icons.palette_outlined),
+                        ),
+                        IconButton(
+                          tooltip: isDarkMode ? '关闭夜间模式' : '夜间模式',
+                          color: foregroundColor,
+                          onPressed: onToggleNightMode,
+                          icon: Icon(
+                            isDarkMode
+                                ? Icons.light_mode_outlined
+                                : Icons.dark_mode_outlined,
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      tooltip: '下一页',
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile.adaptive(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    secondary: Icon(
+                      Icons.splitscreen_outlined,
                       color: foregroundColor,
-                      onPressed:
-                          currentPageIndex >= pageCount - 1 ? null : onNextPage,
-                      icon: const Icon(Icons.chevron_right),
                     ),
-                  ],
-                ),
-                Slider(
-                  min: 0,
-                  max: sliderMax,
-                  divisions: pageCount > 1 ? pageCount - 1 : null,
-                  value: sliderValue,
-                  label: '${currentPageIndex + 1}',
-                  onChanged: pageCount > 1
-                      ? (value) => onPreviewPage(value.round())
-                      : null,
-                  onChangeEnd: pageCount > 1
-                      ? (value) => onJumpToPage(value.round())
-                      : null,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SegmentedButton<ReaderMode>(
-                        showSelectedIcon: false,
-                        segments: const [
-                          ButtonSegment(
-                            value: ReaderMode.horizontalPage,
-                            icon: Icon(Icons.view_carousel_outlined),
-                            label: Text('横向'),
-                          ),
-                          ButtonSegment(
-                            value: ReaderMode.verticalScroll,
-                            icon: Icon(Icons.view_stream_outlined),
-                            label: Text('竖向'),
-                          ),
-                        ],
-                        selected: {readerMode},
-                        onSelectionChanged: (selection) {
-                          onModeChanged(selection.first);
-                        },
+                    title: Text(
+                      '自动拆分双页图',
+                      style: TextStyle(
+                        color: foregroundColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: '背景',
-                      color: foregroundColor,
-                      onPressed: onCycleBackground,
-                      icon: const Icon(Icons.palette_outlined),
-                    ),
-                    IconButton(
-                      tooltip: isDarkMode ? '关闭夜间模式' : '夜间模式',
-                      color: foregroundColor,
-                      onPressed: onToggleNightMode,
-                      icon: Icon(
-                        isDarkMode
-                            ? Icons.light_mode_outlined
-                            : Icons.dark_mode_outlined,
+                    value: autoSplitWidePages,
+                    onChanged: onAutoSplitWidePagesChanged,
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '拆页方向',
+                      style: TextStyle(
+                        color: foregroundColor.withAlpha(210),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<ComicReadingDirection>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(
+                          value: ComicReadingDirection.rightToLeft,
+                          icon: Icon(Icons.chevron_left),
+                          label: Text('从右到左'),
+                        ),
+                        ButtonSegment(
+                          value: ComicReadingDirection.leftToRight,
+                          icon: Icon(Icons.chevron_right),
+                          label: Text('从左到右'),
+                        ),
+                      ],
+                      selected: {readingDirection},
+                      onSelectionChanged: (selection) {
+                        onReadingDirectionChanged(selection.first);
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

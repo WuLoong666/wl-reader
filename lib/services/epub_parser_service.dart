@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
 import '../models/chapter.dart';
+import '../utils/epub_path_resolver.dart';
 
 class EpubParserService {
   Future<ParsedBookDraft> parse(File file) async {
@@ -125,9 +126,15 @@ class EpubParserService {
         element.remove();
       }
 
+      final images = _readChapterImages(
+        archive: archive,
+        parsed: parsed,
+        chapterPath: chapterPath,
+        opfDir: opfDir,
+      );
       final heading = parsed.querySelector('h1, h2, h3, title')?.text.trim();
       final text = _cleanText(parsed.body?.text ?? parsed.outerHtml);
-      if (text.isEmpty) {
+      if (text.isEmpty && images.isEmpty) {
         continue;
       }
 
@@ -137,11 +144,54 @@ class EpubParserService {
               ? '第 ${chapters.length + 1} 章'
               : heading,
           content: text,
+          htmlContent: parsed.body?.innerHtml ?? parsed.outerHtml,
+          epubImages: images,
         ),
       );
     }
 
     return chapters;
+  }
+
+  List<EpubImageAssetDraft> _readChapterImages({
+    required Archive archive,
+    required dynamic parsed,
+    required String chapterPath,
+    required String opfDir,
+  }) {
+    final images = <EpubImageAssetDraft>[];
+
+    for (final image in parsed.querySelectorAll('img')) {
+      final source = image.attributes['src']?.trim();
+      if (source == null || source.isEmpty) {
+        continue;
+      }
+
+      final archiveFile = _findImageArchiveFile(
+        archive: archive,
+        source: source,
+        chapterPath: chapterPath,
+        opfDir: opfDir,
+      );
+      if (archiveFile == null || !archiveFile.isFile) {
+        continue;
+      }
+
+      final archivePath = _normalizeArchivePath(archiveFile.name);
+      images.add(
+        EpubImageAssetDraft(
+          originalPath: source,
+          archivePath: archivePath,
+          relativeOutputPath: EpubPathResolver.outputRelativePath(
+            archivePath: archivePath,
+            opfDir: opfDir,
+          ),
+          bytes: _archiveFileBytes(archiveFile),
+        ),
+      );
+    }
+
+    return images;
   }
 
   _CoverData? _readCover(
@@ -182,7 +232,8 @@ class EpubParserService {
     if (file == null || !file.isFile) {
       return null;
     }
-    return _CoverData(bytes: List<int>.from(file.content as List), extension: extension);
+    return _CoverData(
+        bytes: List<int>.from(file.content as List), extension: extension);
   }
 
   bool _isHtmlItem(_ManifestItem item) {
@@ -216,8 +267,36 @@ class EpubParserService {
 
   ArchiveFile? _findArchiveFile(Archive archive, String archivePath) {
     final normalized = _normalizeArchivePath(archivePath);
+    ArchiveFile? caseInsensitiveMatch;
     for (final file in archive.files) {
-      if (_normalizeArchivePath(file.name) == normalized) {
+      final filePath = _normalizeArchivePath(file.name);
+      if (filePath == normalized) {
+        return file;
+      }
+      if (filePath.toLowerCase() == normalized.toLowerCase()) {
+        caseInsensitiveMatch ??= file;
+      }
+    }
+    return caseInsensitiveMatch;
+  }
+
+  ArchiveFile? _findImageArchiveFile({
+    required Archive archive,
+    required String source,
+    required String chapterPath,
+    required String opfDir,
+  }) {
+    final candidates = EpubPathResolver.imagePathCandidates(
+      chapterPath: chapterPath,
+      opfDir: opfDir,
+      source: source,
+    );
+    for (final candidate in candidates) {
+      if (!_isSupportedImagePath(candidate)) {
+        continue;
+      }
+      final file = _findArchiveFile(archive, candidate);
+      if (file != null) {
         return file;
       }
     }
@@ -225,15 +304,16 @@ class EpubParserService {
   }
 
   String _joinArchivePath(String baseDir, String href) {
-    final pathOnly = Uri.decodeFull(Uri.parse(href).path);
+    final pathOnly = EpubPathResolver.sourcePath(href) ?? href;
     if (baseDir == '.' || baseDir.isEmpty) {
       return _normalizeArchivePath(pathOnly);
     }
-    return _normalizeArchivePath(p.posix.normalize(p.posix.join(baseDir, pathOnly)));
+    return _normalizeArchivePath(
+        p.posix.normalize(p.posix.join(baseDir, pathOnly)));
   }
 
   String _normalizeArchivePath(String path) {
-    return path.replaceAll('\\', '/').replaceFirst(RegExp(r'^/+'), '');
+    return EpubPathResolver.normalizeArchivePath(path);
   }
 
   String _cleanText(String text) {
@@ -246,7 +326,9 @@ class EpubParserService {
   }
 
   String _imageExtension(String href, String mediaType) {
-    final extension = p.extension(href).replaceFirst('.', '').toLowerCase();
+    final sourcePath = EpubPathResolver.sourcePath(href) ?? href;
+    final extension =
+        p.extension(sourcePath).replaceFirst('.', '').toLowerCase();
     if (extension.isNotEmpty) {
       return extension;
     }
@@ -258,6 +340,21 @@ class EpubParserService {
       'image/svg+xml' => 'svg',
       _ => 'png',
     };
+  }
+
+  bool _isSupportedImagePath(String path) {
+    return switch (p.extension(path).toLowerCase()) {
+      '.jpg' || '.jpeg' || '.png' || '.webp' || '.gif' => true,
+      _ => false,
+    };
+  }
+
+  List<int> _archiveFileBytes(ArchiveFile file) {
+    final content = file.content;
+    if (content is List<int>) {
+      return List<int>.from(content);
+    }
+    return List<int>.from(content as List);
   }
 
   T? _firstWhereOrNull<T>(Iterable<T> items, bool Function(T item) test) {

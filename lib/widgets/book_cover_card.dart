@@ -13,111 +13,120 @@ class BookCoverCard extends StatelessWidget {
     super.key,
     required this.book,
     this.onTap,
+    this.onLongPressStart,
+    this.onSecondaryTapDown,
   });
 
   static const _coverAspectRatio = 0.68;
 
   final Book book;
   final VoidCallback? onTap;
+  final GestureLongPressStartCallback? onLongPressStart;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context) {
     final progressText = '${(book.progress * 100).clamp(0, 100).round()}%';
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: AspectRatio(
-                    aspectRatio: _coverAspectRatio,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        boxShadow: [AppShadows.coverGlow()],
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          _CoverImage(book: book),
-                          Positioned(
-                            left: 6,
-                            bottom: 6,
-                            child: _CoverBadge(
-                              label: book.typeLabel,
-                              icon: book.bookType == BookType.comic
-                                  ? Icons.collections_bookmark_outlined
-                                  : Icons.menu_book_outlined,
-                            ),
-                          ),
-                          if (book.isWantToRead)
-                            const Positioned(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPressStart: onLongPressStart,
+      onSecondaryTapDown: onSecondaryTapDown,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: AspectRatio(
+                      aspectRatio: _coverAspectRatio,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          boxShadow: [AppShadows.coverGlow()],
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            _CoverImage(book: book),
+                            Positioned(
                               left: 6,
-                              top: 6,
-                              child: _BookmarkBadge(),
-                            ),
-                          Positioned(
-                            right: 6,
-                            top: 6,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: AppColors.deepPurple
-                                    .withValues(alpha: 0.76),
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.sm),
+                              bottom: 6,
+                              child: _CoverBadge(
+                                label: book.typeLabel,
+                                icon: book.bookType == BookType.comic
+                                    ? Icons.collections_bookmark_outlined
+                                    : Icons.menu_book_outlined,
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
+                            ),
+                            if (book.isWantToRead)
+                              const Positioned(
+                                left: 6,
+                                top: 6,
+                                child: _BookmarkBadge(),
+                              ),
+                            Positioned(
+                              right: 6,
+                              top: 6,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: AppColors.deepPurple
+                                      .withValues(alpha: 0.76),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.sm),
                                 ),
-                                child: Text(
-                                  progressText,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  child: Text(
+                                    progressText,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                book.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.ink,
-                      fontWeight: FontWeight.w900,
-                      height: 1.16,
-                    ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                book.author.trim().isEmpty ? '作者未记录' : book.author.trim(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.mutedInk,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  book.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w900,
+                        height: 1.16,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  book.author.trim().isEmpty ? '作者未记录' : book.author.trim(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.mutedInk,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

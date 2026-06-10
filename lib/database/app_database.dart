@@ -26,7 +26,7 @@ class AppDatabase {
     final db = await databaseFactory.openDatabase(
       p.join(dataDir.path, 'wl_reader.db'),
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       ),
@@ -71,6 +71,7 @@ CREATE TABLE chapter (
   chapter_index INTEGER NOT NULL,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
+  html_content TEXT NOT NULL DEFAULT '',
   FOREIGN KEY(book_id) REFERENCES book(id)
 )
 ''');
@@ -111,6 +112,12 @@ SET book_type = CASE
   ELSE 'novel'
 END
 ''');
+    }
+
+    if (oldVersion < 4) {
+      await db.execute(
+        "ALTER TABLE chapter ADD COLUMN html_content TEXT NOT NULL DEFAULT ''",
+      );
     }
   }
 }

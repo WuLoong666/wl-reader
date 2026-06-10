@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -89,13 +90,20 @@ class FileImportService {
     );
 
     final bookId = await _bookDao.insert(book);
-    final chapters = parsed.chapters.indexed.map((entry) {
+    final importedChapters = format == LocalBookFormat.epub
+        ? await _saveEpubChapterAssets(
+            bookId: bookId,
+            chapters: parsed.chapters,
+          )
+        : parsed.chapters;
+    final chapters = importedChapters.indexed.map((entry) {
       final (index, draft) = entry;
       return Chapter(
         bookId: bookId,
         chapterIndex: index,
         title: draft.title.trim().isEmpty ? '第 ${index + 1} 章' : draft.title,
         content: draft.content,
+        htmlContent: draft.htmlContent,
       );
     }).toList(growable: false);
 
@@ -272,6 +280,86 @@ class FileImportService {
   String _titleFromPath(String sourcePath) {
     final title = p.basenameWithoutExtension(sourcePath).trim();
     return title.isEmpty ? '未命名漫画' : title;
+  }
+
+  Future<List<ChapterDraft>> _saveEpubChapterAssets({
+    required int bookId,
+    required List<ChapterDraft> chapters,
+  }) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final assetsDir = Directory(p.join(appDir.path, 'epub_assets', '$bookId'));
+    await assetsDir.create(recursive: true);
+
+    // TODO: Delete epub_assets/{bookId} when the matching book is removed.
+    final savedPathsByArchivePath = <String, String>{};
+
+    Future<String> saveAsset(EpubImageAssetDraft asset) async {
+      final cachedPath = savedPathsByArchivePath[asset.archivePath];
+      if (cachedPath != null) {
+        return cachedPath;
+      }
+
+      final targetPath = p.join(assetsDir.path, asset.relativeOutputPath);
+      final targetFile = File(targetPath);
+      await targetFile.parent.create(recursive: true);
+      if (!await targetFile.exists()) {
+        await targetFile.writeAsBytes(asset.bytes, flush: true);
+      }
+
+      savedPathsByArchivePath[asset.archivePath] = targetFile.path;
+      return targetFile.path;
+    }
+
+    final imported = <ChapterDraft>[];
+    for (final chapter in chapters) {
+      final chapterImagePaths = <String, String>{};
+      for (final image in chapter.epubImages) {
+        final localPath = await saveAsset(image);
+        chapterImagePaths[image.originalPath] = localPath;
+      }
+
+      imported.add(
+        ChapterDraft(
+          title: chapter.title,
+          content: chapter.content,
+          htmlContent: _rewriteChapterImageSources(
+            chapter.htmlContent,
+            chapterImagePaths,
+          ),
+          epubImages: chapter.epubImages,
+        ),
+      );
+    }
+
+    return imported;
+  }
+
+  String _rewriteChapterImageSources(
+    String html,
+    Map<String, String> savedPathsByOriginalPath,
+  ) {
+    if (html.trim().isEmpty || savedPathsByOriginalPath.isEmpty) {
+      return html;
+    }
+
+    final document = html_parser.parseFragment(html);
+    var changed = false;
+    for (final image in document.querySelectorAll('img')) {
+      final source = image.attributes['src']?.trim();
+      if (source == null || source.isEmpty) {
+        continue;
+      }
+
+      final localPath = savedPathsByOriginalPath[source];
+      if (localPath == null) {
+        continue;
+      }
+
+      image.attributes['src'] = localPath;
+      changed = true;
+    }
+
+    return changed ? document.outerHtml : html;
   }
 
   Future<ParsedBookDraft> _parseCopiedFile(

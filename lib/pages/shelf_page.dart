@@ -12,6 +12,7 @@ import '../theme/app_spacing.dart';
 import '../utils/book_sorter.dart';
 import '../utils/library_filter.dart';
 import '../widgets/anime_background.dart';
+import '../widgets/book_context_menu.dart';
 import '../widgets/book_cover_card.dart';
 import '../widgets/book_detail_sheet.dart';
 import '../widgets/book_sort_sheet.dart';
@@ -146,6 +147,16 @@ class _ShelfPageState extends State<ShelfPage> {
                         return BookCoverCard(
                           book: book,
                           onTap: () => _showBookDetail(context, book),
+                          onLongPressStart: (details) => _showContextMenu(
+                            context,
+                            book,
+                            details.globalPosition,
+                          ),
+                          onSecondaryTapDown: (details) => _showContextMenu(
+                            context,
+                            book,
+                            details.globalPosition,
+                          ),
                         );
                       },
                       childCount: books.length,
@@ -214,6 +225,119 @@ class _ShelfPageState extends State<ShelfPage> {
     }
 
     await _openBook(context, book);
+  }
+
+  Future<void> _showContextMenu(
+    BuildContext context,
+    Book book,
+    Offset position,
+  ) {
+    return showBookContextMenu(
+      context: context,
+      book: book,
+      position: position,
+      onSelect: () => _showSnackBar(context, '选择功能待完善'),
+      onEditInfo: () => _showSnackBar(context, '编辑信息功能待完善'),
+      onMarkAsRead: () => _updateReadingStatus(
+        context,
+        book,
+        isFinished: true,
+      ),
+      onMarkAsUnread: () => _updateReadingStatus(
+        context,
+        book,
+        isFinished: false,
+      ),
+      onEditCover: () => _showSnackBar(context, '编辑封面功能待完善'),
+      onShareFile: () => _shareBookFile(context, book),
+      onDelete: () => _confirmDeleteBook(context, book),
+      onToggleWantToRead: () => _toggleWantToRead(context, book),
+    );
+  }
+
+  Future<void> _updateReadingStatus(
+    BuildContext context,
+    Book book, {
+    required bool isFinished,
+  }) async {
+    await context.read<LibraryStore>().updateReadingStatus(
+          book: book,
+          isFinished: isFinished,
+        );
+    if (!context.mounted) {
+      return;
+    }
+    _showSnackBar(context, isFinished ? '已标记为读完' : '已标记为未阅读');
+  }
+
+  Future<void> _toggleWantToRead(BuildContext context, Book book) async {
+    await context.read<LibraryStore>().updateWantToRead(
+          book: book,
+          isWantToRead: !book.isWantToRead,
+        );
+    if (!context.mounted) {
+      return;
+    }
+    _showSnackBar(context, book.isWantToRead ? '已移出欲读' : '已加入欲读');
+  }
+
+  Future<void> _shareBookFile(BuildContext context, Book book) async {
+    final sourceType = await FileSystemEntity.type(book.filePath);
+    if (sourceType == FileSystemEntityType.notFound) {
+      if (context.mounted) {
+        _showSnackBar(context, '源文件不存在，无法分享');
+      }
+      return;
+    }
+
+    if (context.mounted) {
+      _showSnackBar(context, '分享文件功能待完善');
+    }
+  }
+
+  Future<void> _confirmDeleteBook(BuildContext context, Book book) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('删除书籍'),
+          content: Text('确定要从书架中删除《${book.title}》吗？此操作不可撤销。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE53935),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    await context.read<LibraryStore>().deleteBook(book);
+    if (!context.mounted) {
+      return;
+    }
+    _showSnackBar(context, '已删除《${book.title}》');
+  }
+
+  void _showSnackBar(BuildContext context, String message) {
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   void _showSortOptions(BuildContext context) {

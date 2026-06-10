@@ -5,6 +5,7 @@ class Chapter {
     required this.chapterIndex,
     required this.title,
     required this.content,
+    this.htmlContent = '',
   });
 
   final int? id;
@@ -12,6 +13,7 @@ class Chapter {
   final int chapterIndex;
   final String title;
   final String content;
+  final String htmlContent;
 
   Chapter copyWith({
     int? id,
@@ -19,6 +21,7 @@ class Chapter {
     int? chapterIndex,
     String? title,
     String? content,
+    String? htmlContent,
   }) {
     return Chapter(
       id: id ?? this.id,
@@ -26,6 +29,7 @@ class Chapter {
       chapterIndex: chapterIndex ?? this.chapterIndex,
       title: title ?? this.title,
       content: content ?? this.content,
+      htmlContent: htmlContent ?? this.htmlContent,
     );
   }
 
@@ -36,6 +40,7 @@ class Chapter {
       'chapter_index': chapterIndex,
       'title': title,
       'content': content,
+      'html_content': htmlContent,
     };
   }
 
@@ -46,6 +51,7 @@ class Chapter {
       chapterIndex: map['chapter_index'] as int? ?? 0,
       title: map['title'] as String? ?? '',
       content: map['content'] as String? ?? '',
+      htmlContent: map['html_content'] as String? ?? '',
     );
   }
 }
@@ -54,10 +60,14 @@ class ChapterDraft {
   const ChapterDraft({
     required this.title,
     required this.content,
+    this.htmlContent = '',
+    this.epubImages = const [],
   });
 
   final String title;
   final String content;
+  final String htmlContent;
+  final List<EpubImageAssetDraft> epubImages;
 }
 
 class ParsedBookDraft {
@@ -74,4 +84,18 @@ class ParsedBookDraft {
   final List<ChapterDraft> chapters;
   final List<int>? coverBytes;
   final String? coverExtension;
+}
+
+class EpubImageAssetDraft {
+  const EpubImageAssetDraft({
+    required this.originalPath,
+    required this.archivePath,
+    required this.relativeOutputPath,
+    required this.bytes,
+  });
+
+  final String originalPath;
+  final String archivePath;
+  final String relativeOutputPath;
+  final List<int> bytes;
 }

@@ -106,4 +106,13 @@ added_time DESC
       whereArgs: [bookId],
     );
   }
+
+  Future<void> deleteById(int bookId) async {
+    final db = await _database.database;
+    await db.delete(
+      'book',
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
 }

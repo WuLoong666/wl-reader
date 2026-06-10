@@ -16,9 +16,25 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
-    project.evaluationDependsOn(":app")
+    plugins.withId("com.android.application") {
+        extensions.configure<com.android.build.api.dsl.ApplicationExtension>("android") {
+            compileSdk = 36
+        }
+    }
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.api.dsl.LibraryExtension>("android") {
+            compileSdk = 36
+        }
+    }
+    afterEvaluate {
+        extensions.findByName("android")?.let { androidExtension ->
+            when (androidExtension) {
+                is com.android.build.api.dsl.ApplicationExtension -> androidExtension.compileSdk = 36
+                is com.android.build.api.dsl.LibraryExtension -> androidExtension.compileSdk = 36
+            }
+        }
+    }
 }
-
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

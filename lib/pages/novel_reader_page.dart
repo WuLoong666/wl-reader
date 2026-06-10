@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -9,9 +10,11 @@ import '../database/book_dao.dart';
 import '../database/chapter_dao.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
+import '../models/epub_content_block.dart';
 import '../models/reader_mode.dart';
 import '../services/reading_progress_service.dart';
 import '../services/reading_time_service.dart';
+import '../utils/epub_html_block_parser.dart';
 import '../utils/text_paginator.dart';
 import '../widgets/reader_bottom_menu.dart';
 import '../widgets/reader_top_menu.dart';
@@ -230,6 +233,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                     controller: _scrollController,
                     chapterTitle: chapter.title,
                     content: chapter.content,
+                    htmlContent: chapter.htmlContent,
                     foregroundColor: colors.foreground,
                     fontSize: _fontSize,
                     lineHeight: _lineHeight,
@@ -1232,6 +1236,7 @@ class _ReaderScrollContent extends StatelessWidget {
     required this.controller,
     required this.chapterTitle,
     required this.content,
+    required this.htmlContent,
     required this.foregroundColor,
     required this.fontSize,
     required this.lineHeight,
@@ -1244,6 +1249,7 @@ class _ReaderScrollContent extends StatelessWidget {
   final ScrollController controller;
   final String chapterTitle;
   final String content;
+  final String htmlContent;
   final Color foregroundColor;
   final double fontSize;
   final double lineHeight;
@@ -1255,6 +1261,10 @@ class _ReaderScrollContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final blocks = EpubHtmlBlockParser.parse(
+      html: htmlContent,
+      fallbackPlainText: content,
+    );
 
     return Align(
       alignment: Alignment.topCenter,
@@ -1280,14 +1290,13 @@ class _ReaderScrollContent extends StatelessWidget {
                     ),
               ),
               const SizedBox(height: 18),
-              Text(
-                content,
-                style: TextStyle(
-                  color: foregroundColor,
+              for (final block in blocks)
+                _EpubContentBlockView(
+                  block: block,
+                  foregroundColor: foregroundColor,
                   fontSize: fontSize,
-                  height: lineHeight,
+                  lineHeight: lineHeight,
                 ),
-              ),
               const SizedBox(height: 28),
               _ChapterEndPanel(
                 foregroundColor: foregroundColor,
@@ -1297,6 +1306,129 @@ class _ReaderScrollContent extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EpubContentBlockView extends StatelessWidget {
+  const _EpubContentBlockView({
+    required this.block,
+    required this.foregroundColor,
+    required this.fontSize,
+    required this.lineHeight,
+  });
+
+  final EpubContentBlock block;
+  final Color foregroundColor;
+  final double fontSize;
+  final double lineHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (block.type) {
+      EpubContentBlockType.heading => Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 14),
+          child: Text(
+            block.content,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w800,
+                  height: 1.3,
+                ),
+          ),
+        ),
+      EpubContentBlockType.image => _EpubImageBlock(
+          path: block.content,
+          foregroundColor: foregroundColor,
+        ),
+      EpubContentBlockType.divider => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Divider(color: foregroundColor.withAlpha(80)),
+        ),
+      EpubContentBlockType.text => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            block.content,
+            style: TextStyle(
+              color: foregroundColor,
+              fontSize: fontSize,
+              height: lineHeight,
+            ),
+          ),
+        ),
+    };
+  }
+}
+
+class _EpubImageBlock extends StatelessWidget {
+  const _EpubImageBlock({
+    required this.path,
+    required this.foregroundColor,
+  });
+
+  final String path;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final file = File(path);
+    if (!file.existsSync()) {
+      return _MissingEpubImagePlaceholder(foregroundColor: foregroundColor);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Image.file(
+          file,
+          width: double.infinity,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return _MissingEpubImagePlaceholder(
+              foregroundColor: foregroundColor,
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MissingEpubImagePlaceholder extends StatelessWidget {
+  const _MissingEpubImagePlaceholder({
+    required this.foregroundColor,
+  });
+
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      decoration: BoxDecoration(
+        border: Border.all(color: foregroundColor.withAlpha(80)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.broken_image_outlined,
+            color: foregroundColor.withAlpha(150),
+            size: 32,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '图片无法显示',
+            style: TextStyle(
+              color: foregroundColor.withAlpha(170),
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }
