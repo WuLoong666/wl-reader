@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
@@ -7,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
+import 'local_image_view.dart';
 
 class BookCoverCard extends StatelessWidget {
   const BookCoverCard({
@@ -205,9 +204,6 @@ class _CoverImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(book.coverPath);
-    final hasCover = book.coverPath.isNotEmpty && file.existsSync();
-
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -222,13 +218,14 @@ class _CoverImage extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
       ),
       clipBehavior: Clip.antiAlias,
-      child: hasCover
-          ? Image.file(
-              file,
+      child: book.coverPath.isNotEmpty
+          ? LocalImageView(
+              path: book.coverPath,
               width: double.infinity,
               height: double.infinity,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => _FallbackCover(title: book.title),
+              fallbackBuilder: (_) => _FallbackCover(title: book.title),
+              unsupportedBuilder: (_) => _FallbackCover(title: book.title),
             )
           : _FallbackCover(title: book.title),
     );

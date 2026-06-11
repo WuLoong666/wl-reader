@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -8,14 +7,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/book_dao.dart';
 import '../database/chapter_dao.dart';
+import '../database/epub_toc_item_dao.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
 import '../models/epub_content_block.dart';
+import '../models/epub_toc_item.dart';
 import '../models/reader_mode.dart';
 import '../services/reading_progress_service.dart';
 import '../services/reading_time_service.dart';
 import '../utils/epub_html_block_parser.dart';
 import '../utils/text_paginator.dart';
+import '../widgets/local_image_view.dart';
 import '../widgets/reader_bottom_menu.dart';
 import '../widgets/reader_top_menu.dart';
 
@@ -59,6 +61,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
 
   final _bookDao = BookDao();
   final _chapterDao = ChapterDao();
+  final _epubTocItemDao = EpubTocItemDao();
   final _progressService = ReadingProgressService();
   final _readingTimeService = ReadingTimeService();
   final _pageController = PageController();
@@ -66,6 +69,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
 
   Book? _book;
   List<Chapter> _chapters = const [];
+  List<EpubTocItem> _tocItems = const [];
   List<String> _currentPages = const [''];
   int _chapterIndex = 0;
   int _currentPageIndex = 0;
@@ -83,6 +87,8 @@ class _NovelReaderPageState extends State<NovelReaderPage>
   double? _pendingChapterFraction;
   double? _pendingScrollOffset;
   double? _pendingScrollFraction;
+  String? _pendingAnchor;
+  final Map<String, GlobalKey> _anchorKeys = {};
   int? _queuedPageJump;
   bool _queuedProgressSave = false;
   bool _queuedScrollRestore = false;
@@ -239,6 +245,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                     lineHeight: _lineHeight,
                     pageVerticalPadding: _pageVerticalPadding,
                     pageHorizontalPadding: _pageHorizontalPadding,
+                    keyForAnchor: _keyForAnchor,
                     hasNextChapter: _chapterIndex < _chapters.length - 1,
                     onNextChapter: () {
                       unawaited(_goToChapter(_chapterIndex + 1));
@@ -288,8 +295,8 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                       child: ReaderBottomMenu(
                         backgroundColor: colors.menuBackground,
                         foregroundColor: colors.menuForeground,
-                        currentChapterIndex: _chapterIndex,
-                        chapterCount: _chapters.length,
+                        currentChapterIndex: _currentDisplayChapterIndex,
+                        chapterCount: _displayChapterCount,
                         progressText: progressText,
                         fontSize: _fontSize,
                         isDarkMode: _nightMode,
@@ -303,6 +310,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
                         onNextChapter: () {
                           unawaited(_goToChapter(_chapterIndex + 1));
                         },
+                        onShowChapterList: _showChapterList,
                         onDecreaseFont: () {
                           unawaited(_updateFontSize(_fontSize - 1));
                         },
@@ -376,6 +384,31 @@ class _NovelReaderPageState extends State<NovelReaderPage>
     return _chapters[_chapterIndex];
   }
 
+  int get _displayChapterCount {
+    return _tocItems.isEmpty ? _chapters.length : _tocItems.length;
+  }
+
+  int get _currentDisplayChapterIndex {
+    if (_tocItems.isEmpty) {
+      return _chapterIndex;
+    }
+
+    final exactIndex = _tocItems.indexWhere((item) {
+      return item.spineIndex == _chapterIndex;
+    });
+    if (exactIndex >= 0) {
+      return exactIndex;
+    }
+
+    for (var index = _tocItems.length - 1; index >= 0; index -= 1) {
+      final spineIndex = _tocItems[index].spineIndex;
+      if (spineIndex != null && spineIndex <= _chapterIndex) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
   String get _readerModeStorageKey => 'reader_mode_book_${widget.bookId}';
 
   Future<void> _load() async {
@@ -387,6 +420,9 @@ class _NovelReaderPageState extends State<NovelReaderPage>
       }
 
       final chapters = await _chapterDao.getByBookId(widget.bookId);
+      final tocItems = book.format.toLowerCase() == 'epub'
+          ? await _epubTocItemDao.getByBookId(widget.bookId)
+          : const <EpubTocItem>[];
       final chapterIndex = chapters.isEmpty
           ? 0
           : book.currentChapter.clamp(0, chapters.length - 1).toInt();
@@ -416,6 +452,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
       setState(() {
         _book = book;
         _chapters = chapters;
+        _tocItems = tocItems;
         _chapterIndex = chapterIndex;
         _currentPageIndex =
             readerMode == ReaderMode.horizontalPage ? book.currentPosition : 0;
@@ -514,6 +551,7 @@ class _NovelReaderPageState extends State<NovelReaderPage>
     int targetIndex, {
     double? initialPageFraction,
     double? initialScrollFraction,
+    String anchor = '',
   }) async {
     if (targetIndex < 0) {
       _showSnackBar('已经是第一章');
@@ -533,10 +571,12 @@ class _NovelReaderPageState extends State<NovelReaderPage>
       _pendingChapterFraction = initialPageFraction;
       _pendingScrollOffset = initialScrollFraction == null ? 0 : null;
       _pendingScrollFraction = initialScrollFraction;
+      _pendingAnchor = anchor.trim().isEmpty ? null : anchor.trim();
     });
 
     if (_readerMode == ReaderMode.verticalScroll) {
       _ensureVerticalScrollRestore();
+      _queueAnchorScroll(anchor);
       if (initialScrollFraction == null) {
         await _saveProgress(scrollOffsetOverride: 0);
       }
@@ -709,6 +749,108 @@ class _NovelReaderPageState extends State<NovelReaderPage>
     _paginationHash = null;
   }
 
+  Future<void> _showChapterList() async {
+    if (_chapters.isEmpty) {
+      return;
+    }
+
+    final useToc = _tocItems.isNotEmpty;
+    final itemCount = useToc ? _tocItems.length : _chapters.length;
+    setState(() => _showReaderMenu = false);
+    final target = await showModalBottomSheet<_ChapterListTarget>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) {
+        final height = MediaQuery.sizeOf(context).height * 0.78;
+        return SizedBox(
+          height: height,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bookmarks_outlined),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '目录',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
+                    Text(
+                      '$itemCount 章',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: itemCount,
+                  separatorBuilder: (context, index) => const Divider(
+                    height: 1,
+                    indent: 56,
+                  ),
+                  itemBuilder: (context, index) {
+                    final tocItem = useToc ? _tocItems[index] : null;
+                    final chapter = useToc ? null : _chapters[index];
+                    final spineIndex = tocItem?.spineIndex ?? index;
+                    final selected = spineIndex == _chapterIndex;
+                    final title = tocItem?.title ?? chapter?.title ?? '';
+                    final level = tocItem?.level ?? 0;
+                    return ListTile(
+                      selected: selected,
+                      contentPadding: EdgeInsets.only(
+                        left: 16 + level.clamp(0, 6).toDouble() * 18,
+                        right: 16,
+                      ),
+                      leading: Icon(
+                        selected
+                            ? Icons.bookmark
+                            : Icons.bookmark_border_outlined,
+                      ),
+                      title: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Text('${index + 1}'),
+                      onTap: () => Navigator.of(context).pop(
+                        _ChapterListTarget(
+                          spineIndex: useToc ? tocItem?.spineIndex : index,
+                          anchor: tocItem?.anchor ?? '',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (target == null || !mounted) {
+      return;
+    }
+    final targetIndex = target.spineIndex;
+    if (targetIndex == null) {
+      _showSnackBar('目录项暂时无法定位');
+      return;
+    }
+    if (targetIndex == _chapterIndex) {
+      _queueAnchorScroll(target.anchor);
+      return;
+    }
+    await _goToChapter(targetIndex, anchor: target.anchor);
+  }
+
   Future<void> _toggleNightMode() async {
     setState(() {
       _nightMode = !_nightMode;
@@ -811,6 +953,54 @@ class _NovelReaderPageState extends State<NovelReaderPage>
       _pendingScrollFraction = null;
       _scrollController.jumpTo(target);
       unawaited(_saveProgress(scrollOffsetOverride: target));
+    });
+  }
+
+  GlobalKey? _keyForAnchor(String anchor) {
+    final normalized = anchor.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return _anchorKeys.putIfAbsent(normalized, GlobalKey.new);
+  }
+
+  void _queueAnchorScroll(String anchor) {
+    final normalized = anchor.trim();
+    if (normalized.isEmpty || _readerMode != ReaderMode.verticalScroll) {
+      return;
+    }
+
+    _pendingAnchor = normalized;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToPendingAnchor();
+    });
+  }
+
+  void _scrollToPendingAnchor() {
+    final anchor = _pendingAnchor;
+    if (!mounted || anchor == null || !_scrollController.hasClients) {
+      return;
+    }
+
+    final keyContext = _anchorKeys[anchor]?.currentContext;
+    if (keyContext == null) {
+      _pendingAnchor = null;
+      unawaited(_saveProgress(scrollOffsetOverride: _scrollController.offset));
+      return;
+    }
+
+    _pendingAnchor = null;
+    Scrollable.ensureVisible(
+      keyContext,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      alignment: 0.05,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      unawaited(_saveProgress(scrollOffsetOverride: _scrollController.offset));
     });
   }
 
@@ -1079,6 +1269,16 @@ class _NovelReaderPageState extends State<NovelReaderPage>
   }
 }
 
+class _ChapterListTarget {
+  const _ChapterListTarget({
+    required this.spineIndex,
+    required this.anchor,
+  });
+
+  final int? spineIndex;
+  final String anchor;
+}
+
 class _ReaderColors {
   const _ReaderColors({
     required this.background,
@@ -1242,6 +1442,7 @@ class _ReaderScrollContent extends StatelessWidget {
     required this.lineHeight,
     required this.pageVerticalPadding,
     required this.pageHorizontalPadding,
+    required this.keyForAnchor,
     required this.hasNextChapter,
     required this.onNextChapter,
   });
@@ -1255,6 +1456,7 @@ class _ReaderScrollContent extends StatelessWidget {
   final double lineHeight;
   final double pageVerticalPadding;
   final double pageHorizontalPadding;
+  final GlobalKey? Function(String anchor) keyForAnchor;
   final bool hasNextChapter;
   final VoidCallback onNextChapter;
 
@@ -1265,6 +1467,7 @@ class _ReaderScrollContent extends StatelessWidget {
       html: htmlContent,
       fallbackPlainText: content,
     );
+    final usedAnchors = <String>{};
 
     return Align(
       alignment: Alignment.topCenter,
@@ -1292,6 +1495,7 @@ class _ReaderScrollContent extends StatelessWidget {
               const SizedBox(height: 18),
               for (final block in blocks)
                 _EpubContentBlockView(
+                  key: _blockKey(block, usedAnchors),
                   block: block,
                   foregroundColor: foregroundColor,
                   fontSize: fontSize,
@@ -1309,10 +1513,19 @@ class _ReaderScrollContent extends StatelessWidget {
       ),
     );
   }
+
+  GlobalKey? _blockKey(EpubContentBlock block, Set<String> usedAnchors) {
+    final anchor = block.anchor.trim();
+    if (anchor.isEmpty || !usedAnchors.add(anchor)) {
+      return null;
+    }
+    return keyForAnchor(anchor);
+  }
 }
 
 class _EpubContentBlockView extends StatelessWidget {
   const _EpubContentBlockView({
+    super.key,
     required this.block,
     required this.foregroundColor,
     required this.fontSize,
@@ -1372,23 +1585,18 @@ class _EpubImageBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(path);
-    if (!file.existsSync()) {
-      return _MissingEpubImagePlaceholder(foregroundColor: foregroundColor);
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
-        child: Image.file(
-          file,
+        child: LocalImageView(
+          path: path,
           width: double.infinity,
           fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return _MissingEpubImagePlaceholder(
-              foregroundColor: foregroundColor,
-            );
-          },
+          fallbackBuilder: (_) =>
+              _MissingEpubImagePlaceholder(foregroundColor: foregroundColor),
+          unsupportedBuilder: (_) => _UnsupportedEpubImagePlaceholder(
+            foregroundColor: foregroundColor,
+          ),
         ),
       ),
     );
@@ -1423,6 +1631,45 @@ class _MissingEpubImagePlaceholder extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '图片无法显示',
+            style: TextStyle(
+              color: foregroundColor.withAlpha(170),
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnsupportedEpubImagePlaceholder extends StatelessWidget {
+  const _UnsupportedEpubImagePlaceholder({
+    required this.foregroundColor,
+  });
+
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      decoration: BoxDecoration(
+        border: Border.all(color: foregroundColor.withAlpha(80)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image_not_supported_outlined,
+            color: foregroundColor.withAlpha(150),
+            size: 32,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '\u6682\u4e0d\u652f\u6301\u7684\u56fe\u7247\u683c\u5f0f',
             style: TextStyle(
               color: foregroundColor.withAlpha(170),
               fontSize: 14,

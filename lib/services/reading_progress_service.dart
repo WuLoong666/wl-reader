@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/book_dao.dart';
 import '../database/chapter_dao.dart';
+import '../database/epub_toc_item_dao.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
 import '../utils/book_sorter.dart';
@@ -40,13 +41,16 @@ class LibraryStore extends ChangeNotifier {
   LibraryStore({
     BookDao? bookDao,
     ChapterDao? chapterDao,
+    EpubTocItemDao? epubTocItemDao,
     FileImportService? importService,
   })  : _bookDao = bookDao ?? BookDao(),
         _chapterDao = chapterDao ?? ChapterDao(),
+        _epubTocItemDao = epubTocItemDao ?? EpubTocItemDao(),
         _importService = importService ?? FileImportService();
 
   final BookDao _bookDao;
   final ChapterDao _chapterDao;
+  final EpubTocItemDao _epubTocItemDao;
   final FileImportService _importService;
 
   List<Book> _books = const [];
@@ -142,10 +146,12 @@ class LibraryStore extends ChangeNotifier {
       return;
     }
 
+    final spineCount = book.bookType == BookType.novel
+        ? (await _chapterDao.getByBookId(bookId)).length
+        : book.totalChapters;
     final updated = isFinished
         ? book.copyWith(
-            currentChapter:
-                book.totalChapters <= 0 ? 0 : book.totalChapters - 1,
+            currentChapter: spineCount <= 0 ? 0 : spineCount - 1,
             currentPosition:
                 book.bookType == BookType.comic && book.totalChapters > 0
                     ? book.totalChapters - 1
@@ -173,6 +179,7 @@ class LibraryStore extends ChangeNotifier {
     }
 
     await _chapterDao.deleteByBookId(bookId);
+    await _epubTocItemDao.deleteByBookId(bookId);
     await _bookDao.deleteById(bookId);
     // TODO: Remove copied source files, covers, epub_assets/{bookId}, comic
     // extraction directories, and split caches with explicit safe deletion.

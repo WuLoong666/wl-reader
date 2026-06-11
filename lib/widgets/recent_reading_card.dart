@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../models/book.dart';
@@ -7,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
+import 'local_image_view.dart';
 
 class RecentReadingCard extends StatelessWidget {
   const RecentReadingCard({
@@ -145,17 +144,16 @@ class RecentReadingCard extends StatelessWidget {
   }
 
   Widget _cover(Book book) {
-    final file = File(book.coverPath);
-    if (book.coverPath.isNotEmpty && file.existsSync()) {
+    if (book.coverPath.isNotEmpty) {
       return ColoredBox(
         color: const Color(0xFFF1F2F2),
-        child: Image.file(
-          file,
+        child: LocalImageView(
+          path: book.coverPath,
           width: double.infinity,
           height: double.infinity,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) =>
-              const ColoredBox(color: Color(0xFFE4E7E7)),
+          fallbackBuilder: (_) => const ColoredBox(color: Color(0xFFE4E7E7)),
+          unsupportedBuilder: (_) => const ColoredBox(color: Color(0xFFE4E7E7)),
         ),
       );
     }

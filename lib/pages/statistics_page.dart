@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +8,7 @@ import '../services/reading_progress_service.dart';
 import '../services/reading_time_service.dart';
 import '../utils/time_format.dart';
 import '../widgets/book_detail_sheet.dart';
+import '../widgets/local_image_view.dart';
 import 'comic_reader_page.dart';
 import 'novel_reader_page.dart';
 
@@ -832,15 +832,14 @@ class _RecentCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(book.coverPath);
-    final hasCover = book.coverPath.isNotEmpty && file.existsSync();
-    if (hasCover) {
+    if (book.coverPath.isNotEmpty) {
       return ColoredBox(
         color: const Color(0xFFF1F2F2),
-        child: Image.file(
-          file,
+        child: LocalImageView(
+          path: book.coverPath,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _FallbackCover(title: book.title),
+          fallbackBuilder: (_) => _FallbackCover(title: book.title),
+          unsupportedBuilder: (_) => _FallbackCover(title: book.title),
         ),
       );
     }

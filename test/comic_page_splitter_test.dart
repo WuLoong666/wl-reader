@@ -91,6 +91,90 @@ void main() {
       expect(await cacheDir.exists(), isFalse);
     });
 
+    test('splits png and webp extension wide pages', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'comic_page_splitter_',
+      );
+      final cacheDir = Directory(p.join(tempDir.path, 'cache'));
+      final pngPath = p.join(tempDir.path, 'wide.png');
+      final webpPath = p.join(tempDir.path, 'wide.webp');
+      final cachePaths = [
+        p.join(cacheDir.path, '00000_page_left.jpg'),
+        p.join(cacheDir.path, '00000_page_right.jpg'),
+        p.join(cacheDir.path, '00001_page_left.jpg'),
+        p.join(cacheDir.path, '00001_page_right.jpg'),
+      ];
+      final wideBytes = img.encodePng(img.Image(width: 400, height: 200));
+      await File(pngPath).writeAsBytes(wideBytes, flush: true);
+      await File(webpPath).writeAsBytes(wideBytes, flush: true);
+
+      addTearDown(() async {
+        await _deleteFileIfExists(pngPath);
+        await _deleteFileIfExists(webpPath);
+        for (final cachePath in cachePaths) {
+          await _deleteFileIfExists(cachePath);
+        }
+        await _deleteDirectoryIfExists(cacheDir);
+        await _deleteDirectoryIfExists(tempDir);
+      });
+
+      final displayPages = await ComicPageSplitter.buildDisplayPages(
+        imagePaths: [pngPath, webpPath],
+        cacheDir: cacheDir,
+        autoSplitWidePages: true,
+        readingDirection: ComicReadingDirection.leftToRight,
+      );
+
+      expect(displayPages, hasLength(4));
+      expect(displayPages.map((page) => page.part), [
+        ComicPagePart.left,
+        ComicPagePart.right,
+        ComicPagePart.left,
+        ComicPagePart.right,
+      ]);
+      for (final cachePath in cachePaths) {
+        expect(await File(cachePath).exists(), isTrue);
+      }
+    });
+
+    test('keeps gif svg avif and unknown images unsplit', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'comic_page_splitter_',
+      );
+      final cacheDir = Directory(p.join(tempDir.path, 'cache'));
+      final sourcePaths = [
+        p.join(tempDir.path, 'wide.gif'),
+        p.join(tempDir.path, 'wide.svg'),
+        p.join(tempDir.path, 'wide.avif'),
+        p.join(tempDir.path, 'wide.bin'),
+      ];
+      final wideBytes = img.encodeJpg(img.Image(width: 400, height: 200));
+      for (final sourcePath in sourcePaths) {
+        await File(sourcePath).writeAsBytes(wideBytes, flush: true);
+      }
+
+      addTearDown(() async {
+        for (final sourcePath in sourcePaths) {
+          await _deleteFileIfExists(sourcePath);
+        }
+        await _deleteDirectoryIfExists(cacheDir);
+        await _deleteDirectoryIfExists(tempDir);
+      });
+
+      final displayPages = await ComicPageSplitter.buildDisplayPages(
+        imagePaths: sourcePaths,
+        cacheDir: cacheDir,
+        autoSplitWidePages: true,
+        readingDirection: ComicReadingDirection.rightToLeft,
+      );
+
+      expect(displayPages, hasLength(sourcePaths.length));
+      expect(displayPages.map((page) => page.imagePath), sourcePaths);
+      expect(displayPages.every((page) => page.part == ComicPagePart.full),
+          isTrue);
+      expect(await cacheDir.exists(), isFalse);
+    });
+
     test('ignores stale split cache when source page is not wide', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'comic_page_splitter_',

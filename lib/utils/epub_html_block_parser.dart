@@ -57,7 +57,11 @@ class EpubHtmlBlockParser {
       final source = node.attributes['src']?.trim();
       if (source != null && source.isNotEmpty) {
         blocks.add(
-          EpubContentBlock(type: EpubContentBlockType.image, content: source),
+          EpubContentBlock(
+            type: EpubContentBlockType.image,
+            content: source,
+            anchor: _elementAnchor(node),
+          ),
         );
       }
       return;
@@ -73,6 +77,7 @@ class EpubHtmlBlockParser {
       final headingBuffer = _TextBlockBuffer(
         blocks,
         EpubContentBlockType.heading,
+        anchor: _elementAnchor(node),
       );
       for (final child in node.nodes) {
         _visit(child, blocks, headingBuffer);
@@ -83,7 +88,11 @@ class EpubHtmlBlockParser {
 
     if (_isBlock(tag)) {
       buffer.flush();
-      final blockBuffer = _TextBlockBuffer(blocks, EpubContentBlockType.text);
+      final blockBuffer = _TextBlockBuffer(
+        blocks,
+        EpubContentBlockType.text,
+        anchor: _elementAnchor(node),
+      );
       for (final child in node.nodes) {
         _visit(child, blocks, blockBuffer);
       }
@@ -116,6 +125,20 @@ class EpubHtmlBlockParser {
     };
   }
 
+  static String _elementAnchor(dom.Element element) {
+    final id = element.attributes['id']?.trim();
+    if (id != null && id.isNotEmpty) {
+      return id;
+    }
+
+    final name = element.attributes['name']?.trim();
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+
+    return '';
+  }
+
   static List<EpubContentBlock> _plainTextBlocks(String text) {
     final blocks = text
         .split(RegExp(r'\n{2,}'))
@@ -145,10 +168,11 @@ class EpubHtmlBlockParser {
 }
 
 class _TextBlockBuffer {
-  _TextBlockBuffer(this.blocks, this.type);
+  _TextBlockBuffer(this.blocks, this.type, {this.anchor = ''});
 
   final List<EpubContentBlock> blocks;
   final EpubContentBlockType type;
+  final String anchor;
   final StringBuffer _buffer = StringBuffer();
 
   void write(String value) {
@@ -164,6 +188,6 @@ class _TextBlockBuffer {
     if (text.isEmpty) {
       return;
     }
-    blocks.add(EpubContentBlock(type: type, content: text));
+    blocks.add(EpubContentBlock(type: type, content: text, anchor: anchor));
   }
 }

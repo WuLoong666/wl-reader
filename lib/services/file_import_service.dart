@@ -8,8 +8,10 @@ import 'package:path_provider/path_provider.dart';
 
 import '../database/book_dao.dart';
 import '../database/chapter_dao.dart';
+import '../database/epub_toc_item_dao.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
+import '../models/epub_toc_item.dart';
 import '../utils/cover_generator.dart';
 import '../utils/file_type_detector.dart';
 import '../utils/natural_sort.dart';
@@ -20,15 +22,18 @@ class FileImportService {
   FileImportService({
     BookDao? bookDao,
     ChapterDao? chapterDao,
+    EpubTocItemDao? epubTocItemDao,
     TxtParserService? txtParser,
     EpubParserService? epubParser,
   })  : _bookDao = bookDao ?? BookDao(),
         _chapterDao = chapterDao ?? ChapterDao(),
+        _epubTocItemDao = epubTocItemDao ?? EpubTocItemDao(),
         _txtParser = txtParser ?? TxtParserService(),
         _epubParser = epubParser ?? EpubParserService();
 
   final BookDao _bookDao;
   final ChapterDao _chapterDao;
+  final EpubTocItemDao _epubTocItemDao;
   final TxtParserService _txtParser;
   final EpubParserService _epubParser;
   static const _comicImageExtensions = {
@@ -81,7 +86,7 @@ class FileImportService {
       coverPath: coverPath,
       format: FileTypeDetector.formatName(format),
       bookType: BookType.novel,
-      totalChapters: parsed.chapters.length,
+      totalChapters: parsed.displayChapterCount,
       currentChapter: 0,
       currentPosition: 0,
       progress: 0,
@@ -104,11 +109,37 @@ class FileImportService {
         title: draft.title.trim().isEmpty ? '第 ${index + 1} 章' : draft.title,
         content: draft.content,
         htmlContent: draft.htmlContent,
+        sourcePath: draft.sourcePath,
+        anchor: draft.anchor,
       );
     }).toList(growable: false);
 
     await _chapterDao.insertAll(chapters);
+    if (format == LocalBookFormat.epub) {
+      await _epubTocItemDao.insertAll(
+        _epubTocItemsForBook(bookId: bookId, items: parsed.tocItems),
+      );
+    }
     return book.copyWith(id: bookId);
+  }
+
+  List<EpubTocItem> _epubTocItemsForBook({
+    required int bookId,
+    required List<EpubTocItemDraft> items,
+  }) {
+    return items.indexed.map((entry) {
+      final (index, item) = entry;
+      return EpubTocItem(
+        bookId: bookId,
+        itemIndex: index,
+        title: item.title,
+        href: item.href,
+        normalizedPath: item.normalizedPath,
+        anchor: item.anchor,
+        spineIndex: item.spineIndex,
+        level: item.level,
+      );
+    }).toList(growable: false);
   }
 
   Future<Book> _importComicArchive(
@@ -326,6 +357,8 @@ class FileImportService {
             chapter.htmlContent,
             chapterImagePaths,
           ),
+          sourcePath: chapter.sourcePath,
+          anchor: chapter.anchor,
           epubImages: chapter.epubImages,
         ),
       );

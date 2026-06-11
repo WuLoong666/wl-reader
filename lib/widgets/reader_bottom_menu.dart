@@ -21,6 +21,7 @@ class ReaderBottomMenu extends StatelessWidget {
     required this.lineHeight,
     required this.onPreviousChapter,
     required this.onNextChapter,
+    required this.onShowChapterList,
     required this.onDecreaseFont,
     required this.onIncreaseFont,
     required this.onDecreasePageVerticalPadding,
@@ -47,6 +48,7 @@ class ReaderBottomMenu extends StatelessWidget {
   final double lineHeight;
   final VoidCallback onPreviousChapter;
   final VoidCallback onNextChapter;
+  final VoidCallback onShowChapterList;
   final VoidCallback onDecreaseFont;
   final VoidCallback onIncreaseFont;
   final VoidCallback onDecreasePageVerticalPadding;
@@ -133,6 +135,19 @@ class ReaderBottomMenu extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _MenuPanel(
+                      foregroundColor: foregroundColor,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: buttonStyle,
+                          onPressed: onShowChapterList,
+                          icon: const Icon(Icons.bookmarks_outlined),
+                          label: const Text('目录'),
+                        ),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),

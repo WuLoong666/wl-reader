@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import '../services/reading_time_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import 'local_image_view.dart';
 
 Future<bool?> showBookDetailSheet({
   required BuildContext context,
@@ -337,9 +337,6 @@ class _DetailCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(book.coverPath);
-    final hasCover = book.coverPath.isNotEmpty && file.existsSync();
-
     return SizedBox(
       height: height,
       child: AspectRatio(
@@ -363,11 +360,14 @@ class _DetailCover extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.lg),
-            child: hasCover
-                ? Image.file(
-                    file,
+            child: book.coverPath.isNotEmpty
+                ? LocalImageView(
+                    path: book.coverPath,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => _FallbackDetailCover(
+                    fallbackBuilder: (_) => _FallbackDetailCover(
+                      title: book.title,
+                    ),
+                    unsupportedBuilder: (_) => _FallbackDetailCover(
                       title: book.title,
                     ),
                   )

@@ -4,6 +4,7 @@ import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 import '../models/comic_display_page.dart';
+import '../utils/image_format.dart';
 
 class ComicPageSplitter {
   const ComicPageSplitter._();
@@ -26,6 +27,11 @@ class ComicPageSplitter {
       );
 
       if (!autoSplitWidePages) {
+        displayPages.add(fullPage);
+        continue;
+      }
+
+      if (!_isSplittableImagePath(imagePath)) {
         displayPages.add(fullPage);
         continue;
       }
@@ -176,6 +182,10 @@ class ComicPageSplitter {
       leftPath: p.join(cacheDir.path, '${pageName}_page_left.jpg'),
       rightPath: p.join(cacheDir.path, '${pageName}_page_right.jpg'),
     );
+  }
+
+  static bool _isSplittableImagePath(String imagePath) {
+    return ImageFormat.fromPath(imagePath).canSplitWidePage;
   }
 }
 

@@ -1,3 +1,5 @@
+import 'epub_toc_item.dart';
+
 class Chapter {
   const Chapter({
     this.id,
@@ -6,6 +8,8 @@ class Chapter {
     required this.title,
     required this.content,
     this.htmlContent = '',
+    this.sourcePath = '',
+    this.anchor = '',
   });
 
   final int? id;
@@ -14,6 +18,8 @@ class Chapter {
   final String title;
   final String content;
   final String htmlContent;
+  final String sourcePath;
+  final String anchor;
 
   Chapter copyWith({
     int? id,
@@ -22,6 +28,8 @@ class Chapter {
     String? title,
     String? content,
     String? htmlContent,
+    String? sourcePath,
+    String? anchor,
   }) {
     return Chapter(
       id: id ?? this.id,
@@ -30,6 +38,8 @@ class Chapter {
       title: title ?? this.title,
       content: content ?? this.content,
       htmlContent: htmlContent ?? this.htmlContent,
+      sourcePath: sourcePath ?? this.sourcePath,
+      anchor: anchor ?? this.anchor,
     );
   }
 
@@ -41,6 +51,8 @@ class Chapter {
       'title': title,
       'content': content,
       'html_content': htmlContent,
+      'source_path': sourcePath,
+      'anchor': anchor,
     };
   }
 
@@ -52,6 +64,8 @@ class Chapter {
       title: map['title'] as String? ?? '',
       content: map['content'] as String? ?? '',
       htmlContent: map['html_content'] as String? ?? '',
+      sourcePath: map['source_path'] as String? ?? '',
+      anchor: map['anchor'] as String? ?? '',
     );
   }
 }
@@ -61,12 +75,16 @@ class ChapterDraft {
     required this.title,
     required this.content,
     this.htmlContent = '',
+    this.sourcePath = '',
+    this.anchor = '',
     this.epubImages = const [],
   });
 
   final String title;
   final String content;
   final String htmlContent;
+  final String sourcePath;
+  final String anchor;
   final List<EpubImageAssetDraft> epubImages;
 }
 
@@ -75,6 +93,7 @@ class ParsedBookDraft {
     required this.title,
     required this.author,
     required this.chapters,
+    this.tocItems = const [],
     this.coverBytes,
     this.coverExtension,
   });
@@ -82,8 +101,13 @@ class ParsedBookDraft {
   final String title;
   final String author;
   final List<ChapterDraft> chapters;
+  final List<EpubTocItemDraft> tocItems;
   final List<int>? coverBytes;
   final String? coverExtension;
+
+  int get displayChapterCount {
+    return tocItems.isEmpty ? chapters.length : tocItems.length;
+  }
 }
 
 class EpubImageAssetDraft {

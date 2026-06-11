@@ -26,7 +26,7 @@ class AppDatabase {
     final db = await databaseFactory.openDatabase(
       p.join(dataDir.path, 'wl_reader.db'),
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 6,
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       ),
@@ -72,6 +72,8 @@ CREATE TABLE chapter (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   html_content TEXT NOT NULL DEFAULT '',
+  source_path TEXT NOT NULL DEFAULT '',
+  anchor TEXT NOT NULL DEFAULT '',
   FOREIGN KEY(book_id) REFERENCES book(id)
 )
 ''');
@@ -80,6 +82,8 @@ CREATE TABLE chapter (
 CREATE INDEX idx_chapter_book_id
 ON chapter(book_id, chapter_index)
 ''');
+
+    await _createEpubTocItemTable(db);
 
     await db.execute('''
 CREATE TABLE reading_setting (
@@ -119,5 +123,40 @@ END
         "ALTER TABLE chapter ADD COLUMN html_content TEXT NOT NULL DEFAULT ''",
       );
     }
+
+    if (oldVersion < 5) {
+      await db.execute(
+        "ALTER TABLE chapter ADD COLUMN source_path TEXT NOT NULL DEFAULT ''",
+      );
+      await db.execute(
+        "ALTER TABLE chapter ADD COLUMN anchor TEXT NOT NULL DEFAULT ''",
+      );
+    }
+
+    if (oldVersion < 6) {
+      await _createEpubTocItemTable(db);
+    }
+  }
+
+  Future<void> _createEpubTocItemTable(Database db) async {
+    await db.execute('''
+CREATE TABLE IF NOT EXISTS epub_toc_item (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id INTEGER NOT NULL,
+  item_index INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  href TEXT NOT NULL DEFAULT '',
+  normalized_path TEXT NOT NULL DEFAULT '',
+  anchor TEXT NOT NULL DEFAULT '',
+  spine_index INTEGER,
+  level INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY(book_id) REFERENCES book(id)
+)
+''');
+
+    await db.execute('''
+CREATE INDEX IF NOT EXISTS idx_epub_toc_item_book_id
+ON epub_toc_item(book_id, item_index)
+''');
   }
 }
